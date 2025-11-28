@@ -63,9 +63,11 @@ else:
             return value
 
         value = [
-            _PotentialKey(**v.dict())
-            if isinstance(v, openff.interchange.models.PotentialKey)
-            else v
+            (
+                _PotentialKey(**v.dict())
+                if isinstance(v, openff.interchange.models.PotentialKey)
+                else v
+            )
             for v in value
         ]
         return value
@@ -94,6 +96,12 @@ class AttributeConfig(pydantic.BaseModel):
         "none indicates no constraint.",
     )
 
+    regularize: dict[str, float] = pydantic.Field(
+        {},
+        description="The regularization strength to apply to each parameter, e.g. "
+        "'k': 0.01, 'epsilon': 0.001. Parameters not listed are not regularized.",
+    )
+
     if pydantic.__version__.startswith("1."):
 
         @pydantic.root_validator
@@ -102,11 +110,14 @@ class AttributeConfig(pydantic.BaseModel):
 
             scales = values.get("scales")
             limits = values.get("limits")
+            regularize = values.get("regularize")
 
             if any(key not in cols for key in scales):
                 raise ValueError("cannot scale non-trainable parameters")
             if any(key not in cols for key in limits):
                 raise ValueError("cannot clamp non-trainable parameters")
+            if any(key not in cols for key in regularize):
+                raise ValueError("cannot regularize non-trainable parameters")
 
             return values
 
@@ -121,6 +132,9 @@ class AttributeConfig(pydantic.BaseModel):
 
             if any(key not in self.cols for key in self.limits):
                 raise ValueError("cannot clamp non-trainable parameters")
+
+            if any(key not in self.cols for key in self.regularize):
+                raise ValueError("cannot regularize non-trainable parameters")
 
             return self
 
@@ -208,13 +222,16 @@ class Trainable:
         clamp_lower = []
         clamp_upper = []
 
+        regularized_idxs = []
+        regularization_weights = []
+
         for potential_type, potential in zip(potential_types, potentials, strict=True):
             potential_config = config[potential_type]
 
             potential_cols = getattr(potential, f"{attr[:-1]}_cols")
-            assert (
-                len({*potential_config.cols} - {*potential_cols}) == 0
-            ), f"unknown columns: {potential_cols}"
+            assert len({*potential_config.cols} - {*potential_cols}) == 0, (
+                f"unknown columns: {potential_cols}"
+            )
 
             potential_values = getattr(potential, attr).detach().clone()
             potential_values_flat = potential_values.flatten()
@@ -242,13 +259,24 @@ class Trainable:
                     key_to_row[key] for key in unfrozen_keys if key not in excluded_keys
                 }
 
-            unfrozen_idxs.extend(
-                unfrozen_col_offset + col_idx + row_idx * potential_values.shape[-1]
-                for row_idx in range(n_rows)
-                if row_idx in unfrozen_rows
-                for col_idx, col in enumerate(potential_cols)
-                if col in potential_config.cols
-            )
+            # Track unfrozen and regularized indices
+            for row_idx in range(n_rows):
+                if row_idx not in unfrozen_rows:
+                    continue
+                for col_idx, col in enumerate(potential_cols):
+                    if col not in potential_config.cols:
+                        continue
+
+                    flat_idx = (
+                        unfrozen_col_offset
+                        + col_idx
+                        + row_idx * potential_values.shape[-1]
+                    )
+                    unfrozen_idxs.append(flat_idx)
+
+                    if col in potential_config.regularize:
+                        regularized_idxs.append(flat_idx)
+                        regularization_weights.append(potential_config.regularize[col])
 
             unfrozen_col_offset += len(potential_values_flat)
 
@@ -290,6 +318,12 @@ class Trainable:
             smee.utils.tensor_like(scales, values),
             smee.utils.tensor_like(clamp_lower, values),
             smee.utils.tensor_like(clamp_upper, values),
+            torch.tensor(regularized_idxs),
+            (
+                smee.utils.tensor_like(regularization_weights, values)
+                if regularization_weights
+                else smee.utils.tensor_like([], values)
+            ),
         )
 
     def __init__(
@@ -315,6 +349,8 @@ class Trainable:
             param_scales,
             param_clamp_lower,
             param_clamp_upper,
+            param_regularized_idxs,
+            param_regularization_weights,
         ) = self._prepare(force_field, parameters, "parameters")
         (
             self._attr_types,
@@ -324,6 +360,8 @@ class Trainable:
             attr_scales,
             attr_clamp_lower,
             attr_clamp_upper,
+            attr_regularized_idxs,
+            attr_regularization_weights,
         ) = self._prepare(force_field, attributes, "attributes")
 
         self._values = torch.cat([param_values, attr_values])
@@ -340,6 +378,34 @@ class Trainable:
         self._clamp_upper = torch.cat([param_clamp_upper, attr_clamp_upper])[
             self._unfrozen_idxs
         ]
+
+        # Store regularization information
+        all_regularized_idxs = torch.cat(
+            [param_regularized_idxs, attr_regularized_idxs + len(param_scales)]
+        ).long()
+        all_regularization_weights = torch.cat(
+            [param_regularization_weights, attr_regularization_weights]
+        )
+
+        # Map global indices to unfrozen indices
+        idx_mapping = {idx.item(): i for i, idx in enumerate(self._unfrozen_idxs)}
+        self._regularized_idxs = torch.tensor(
+            [
+                idx_mapping[idx.item()]
+                for idx in all_regularized_idxs
+                if idx.item() in idx_mapping
+            ]
+        ).long()
+        regularization_weights = [
+            all_regularization_weights[i]
+            for i, idx in enumerate(all_regularized_idxs)
+            if idx.item() in idx_mapping
+        ]
+        self._regularization_weights = (
+            torch.stack(regularization_weights)
+            if regularization_weights
+            else torch.tensor([])
+        )
 
     @torch.no_grad()
     def to_values(self) -> torch.Tensor:
@@ -381,3 +447,13 @@ class Trainable:
         return (values_flat / self._scales).clamp(
             min=self._clamp_lower, max=self._clamp_upper
         ) * self._scales
+
+    @property
+    def regularized_idxs(self) -> torch.Tensor:
+        """The indices of parameters/attributes to regularize."""
+        return self._regularized_idxs
+
+    @property
+    def regularization_weights(self) -> torch.Tensor:
+        """The regularization weights for parameters/attributes to regularize."""
+        return self._regularization_weights
