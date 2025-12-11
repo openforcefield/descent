@@ -229,9 +229,9 @@ class Trainable:
             potential_config = config[potential_type]
 
             potential_cols = getattr(potential, f"{attr[:-1]}_cols")
-            assert len({*potential_config.cols} - {*potential_cols}) == 0, (
-                f"unknown columns: {potential_cols}"
-            )
+            assert (
+                len({*potential_config.cols} - {*potential_cols}) == 0
+            ), f"unknown columns: {potential_cols}"
 
             potential_values = getattr(potential, attr).detach().clone()
             potential_values_flat = potential_values.flatten()
@@ -450,7 +450,8 @@ class Trainable:
 
     @property
     def regularized_idxs(self) -> torch.Tensor:
-        """The indices of parameters/attributes to regularize."""
+        """The indices (within the tensor returned by to_values)
+        of parameters/attributes to regularize."""
         return self._regularized_idxs
 
     @property
