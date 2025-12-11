@@ -315,8 +315,8 @@ class TestTrainable:
 
         # vdW has 2 parameters (2 rows), and we're regularizing both epsilon and sigma
         # So we should have 4 regularized values total: 2 epsilons + 2 sigmas
-        assert len(trainable.regularized_idxs) == 4
-        assert len(trainable.regularization_weights) == 4
+        expected_idxs = torch.tensor([0, 1, 2, 3], dtype=torch.long)
+        assert torch.equal(trainable.regularized_idxs, expected_idxs)
 
         # Check the weights match what we configured
         # Interleaved: row 0 (eps, sig), row 1 (eps, sig)
@@ -341,8 +341,8 @@ class TestTrainable:
         )
 
         # Only scale_14 should be regularized (1 attribute)
-        assert len(trainable.regularized_idxs) == 1
-        assert len(trainable.regularization_weights) == 1
+        expected_idxs = torch.tensor([0], dtype=torch.long)
+        assert torch.equal(trainable.regularized_idxs, expected_idxs)
 
         expected_weights = torch.tensor(
             [0.05], dtype=trainable.regularization_weights.dtype
@@ -372,8 +372,8 @@ class TestTrainable:
 
         # Only first vdW parameter row is included, with only epsilon regularized
         # Plus scale_14 attribute
-        assert len(trainable.regularized_idxs) == 2
-        assert len(trainable.regularization_weights) == 2
+        expected_idxs = torch.tensor([0, 2], dtype=torch.long)
+        assert torch.equal(trainable.regularized_idxs, expected_idxs)
 
         # First should be epsilon (0.02), second should be scale_14 (0.1)
         expected_weights = torch.tensor(
@@ -399,8 +399,8 @@ class TestTrainable:
 
         # Only second bond parameter row should be included (first is excluded)
         # Both k and length are regularized
-        assert len(trainable.regularized_idxs) == 2
-        assert len(trainable.regularization_weights) == 2
+        expected_idxs = torch.tensor([0, 1], dtype=torch.long)
+        assert torch.equal(trainable.regularized_idxs, expected_idxs)
 
         expected_weights = torch.tensor(
             [0.01, 0.02], dtype=trainable.regularization_weights.dtype
