@@ -139,7 +139,7 @@ def test_predict(
 
     force_field, [topology] = smee.converters.convert_interchange(
         openff.interchange.Interchange.from_smirnoff(
-            openff.toolkit.ForceField("openff-1.3.0.offxml"),
+            openff.toolkit.ForceField("openff_unconstrained-1.3.0.offxml"),
             openff.toolkit.Molecule.from_mapped_smiles(
                 mock_hoh_entry["smiles"]
             ).to_topology(),
