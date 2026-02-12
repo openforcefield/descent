@@ -10,6 +10,8 @@ dependencies:
 
   # Core packages
   - smee-base >=0.10.0
+  - pydantic
+  - pydantic-units
 
   - pytorch
   - pyarrow
@@ -24,6 +26,7 @@ dependencies:
   - rdkit
   - matplotlib-base
   - panel
+  - openmm
 
   # Examples
   - jupyter
