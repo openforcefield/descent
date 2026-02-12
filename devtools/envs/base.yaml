@@ -9,9 +9,9 @@ dependencies:
   - pip
 
   # Core packages
-  - smee >=0.10.0
-  - pydantic-units  # TODO: Remove this line once smee deps are updated
-  - openff-interchange=0.3.17
+  - smee-base >=0.10.0
+  - pydantic
+  - pydantic-units
 
   - pytorch
   - pyarrow
@@ -26,6 +26,7 @@ dependencies:
   - rdkit
   - matplotlib-base
   - panel
+  - openmm
 
   # Examples
   - jupyter
@@ -37,7 +38,6 @@ dependencies:
   - tensorboardX
 
   # Dev / Testing
-  - ambertools
   - rdkit
   - uncertainties
 
