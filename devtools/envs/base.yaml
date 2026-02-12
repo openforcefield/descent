@@ -9,8 +9,7 @@ dependencies:
   - pip
 
   # Core packages
-  - smee >=0.10.0
-  - pydantic-units  # TODO: Remove this line once smee deps are updated
+  - smee-base >=0.10.0
 
   - pytorch
   - pyarrow
@@ -36,7 +35,6 @@ dependencies:
   - tensorboardX
 
   # Dev / Testing
-  - ambertools
   - rdkit
   - uncertainties
 
