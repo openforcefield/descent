@@ -116,8 +116,8 @@ def predict(
         )
 
         coords = (
-            coords_flat.reshape(len(energy_ref), -1, 3)
-        ).detach().requires_grad_(True)
+            (coords_flat.reshape(len(energy_ref), -1, 3)).detach().requires_grad_(True)
+        )
         topology = topologies[smiles]
 
         energy_pred = smee.compute_energy(topology, force_field, coords)
