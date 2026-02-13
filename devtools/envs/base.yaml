@@ -11,7 +11,7 @@ dependencies:
   # Core packages
   - smee >=0.10.0
   - pydantic-units  # TODO: Remove this line once smee deps are updated
-  - openff-interchange=0.3.17
+  - openff-interchange>=0.3.17
 
   - pytorch
   - pyarrow

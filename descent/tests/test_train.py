@@ -88,6 +88,23 @@ class TestAttributeConfig:
         ):
             AttributeConfig(cols=["scale_14"], limits={"scale_15": (0.1, 0.2)})
 
+    def test_validate_keys_regularize(self):
+        with pytest.raises(
+            pydantic.ValidationError, match="cannot regularize non-trainable parameters"
+        ):
+            AttributeConfig(cols=["scale_14"], regularize={"scale_15": 0.01})
+
+    def test_regularize_field(self):
+        config = AttributeConfig(
+            cols=["scale_14", "scale_15"],
+            regularize={"scale_14": 0.01, "scale_15": 0.001},
+        )
+        assert config.regularize == {"scale_14": 0.01, "scale_15": 0.001}
+
+    def test_regularize_empty(self):
+        config = AttributeConfig(cols=["scale_14"])
+        assert config.regularize == {}
+
 
 class TestParameterConfig:
     def test_validate_include_exclude(self):
@@ -268,3 +285,149 @@ class TestTrainable:
 
         assert values.shape == expected_values.shape
         assert torch.allclose(values, expected_values)
+
+    def test_regularized_idxs_no_regularization(
+        self, mock_ff, mock_parameter_configs, mock_attribute_configs
+    ):
+        trainable = Trainable(
+            mock_ff,
+            parameters=mock_parameter_configs,
+            attributes=mock_attribute_configs,
+        )
+
+        assert len(trainable.regularized_idxs) == 0
+        assert len(trainable.regularization_weights) == 0
+
+    def test_regularized_idxs_with_parameter_regularization(self, mock_ff):
+        parameter_configs = {
+            "vdW": ParameterConfig(
+                cols=["epsilon", "sigma"],
+                regularize={"epsilon": 0.01, "sigma": 0.001},
+            ),
+        }
+        attribute_configs = {}
+
+        trainable = Trainable(
+            mock_ff,
+            parameters=parameter_configs,
+            attributes=attribute_configs,
+        )
+
+        # vdW has 2 parameters (2 rows), and we're regularizing both epsilon and sigma
+        # So we should have 4 regularized values total: 2 epsilons + 2 sigmas
+        expected_idxs = torch.tensor([0, 1, 2, 3], dtype=torch.long)
+        assert torch.equal(trainable.regularized_idxs, expected_idxs)
+
+        # Check the weights match what we configured
+        # Interleaved: row 0 (eps, sig), row 1 (eps, sig)
+        expected_weights = torch.tensor(
+            [0.01, 0.001, 0.01, 0.001], dtype=trainable.regularization_weights.dtype
+        )
+        assert torch.allclose(trainable.regularization_weights, expected_weights)
+
+    def test_regularized_idxs_with_attribute_regularization(self, mock_ff):
+        parameter_configs = {}
+        attribute_configs = {
+            "vdW": AttributeConfig(
+                cols=["scale_14", "scale_15"],
+                regularize={"scale_14": 0.05},
+            )
+        }
+
+        trainable = Trainable(
+            mock_ff,
+            parameters=parameter_configs,
+            attributes=attribute_configs,
+        )
+
+        # Only scale_14 should be regularized (1 attribute)
+        expected_idxs = torch.tensor([0], dtype=torch.long)
+        assert torch.equal(trainable.regularized_idxs, expected_idxs)
+
+        expected_weights = torch.tensor(
+            [0.05], dtype=trainable.regularization_weights.dtype
+        )
+        assert torch.allclose(trainable.regularization_weights, expected_weights)
+
+    def test_regularized_idxs_with_mixed_regularization(self, mock_ff):
+        parameter_configs = {
+            "vdW": ParameterConfig(
+                cols=["epsilon", "sigma"],
+                regularize={"epsilon": 0.02},
+                include=[mock_ff.potentials_by_type["vdW"].parameter_keys[0]],
+            ),
+        }
+        attribute_configs = {
+            "vdW": AttributeConfig(
+                cols=["scale_14"],
+                regularize={"scale_14": 0.1},
+            )
+        }
+
+        trainable = Trainable(
+            mock_ff,
+            parameters=parameter_configs,
+            attributes=attribute_configs,
+        )
+
+        # Only first vdW parameter row is included, with only epsilon regularized
+        # Plus scale_14 attribute
+        expected_idxs = torch.tensor([0, 2], dtype=torch.long)
+        assert torch.equal(trainable.regularized_idxs, expected_idxs)
+
+        # First should be epsilon (0.02), second should be scale_14 (0.1)
+        expected_weights = torch.tensor(
+            [0.02, 0.1], dtype=trainable.regularization_weights.dtype
+        )
+        assert torch.allclose(trainable.regularization_weights, expected_weights)
+
+    def test_regularized_idxs_excluded_parameters(self, mock_ff):
+        parameter_configs = {
+            "Bonds": ParameterConfig(
+                cols=["k", "length"],
+                regularize={"k": 0.01, "length": 0.02},
+                exclude=[mock_ff.potentials_by_type["Bonds"].parameter_keys[0]],
+            ),
+        }
+        attribute_configs = {}
+
+        trainable = Trainable(
+            mock_ff,
+            parameters=parameter_configs,
+            attributes=attribute_configs,
+        )
+
+        # Only second bond parameter row should be included (first is excluded)
+        # Both k and length are regularized
+        expected_idxs = torch.tensor([0, 1], dtype=torch.long)
+        assert torch.equal(trainable.regularized_idxs, expected_idxs)
+
+        expected_weights = torch.tensor(
+            [0.01, 0.02], dtype=trainable.regularization_weights.dtype
+        )
+        assert torch.allclose(trainable.regularization_weights, expected_weights)
+
+    def test_regularization_indices_match_unfrozen_values(self, mock_ff):
+        parameter_configs = {
+            "vdW": ParameterConfig(
+                cols=["epsilon"],
+                regularize={"epsilon": 0.01},
+            ),
+        }
+        attribute_configs = {}
+
+        trainable = Trainable(
+            mock_ff,
+            parameters=parameter_configs,
+            attributes=attribute_configs,
+        )
+
+        values = trainable.to_values()
+
+        # Regularization indices should be valid indices into the unfrozen values
+        assert trainable.regularized_idxs.max() < len(values)
+        assert trainable.regularized_idxs.min() >= 0
+
+        # We should be able to index the values tensor with regularization indices
+        regularized_values = values[trainable.regularized_idxs]
+        assert len(regularized_values) == len(trainable.regularized_idxs)
