@@ -26,48 +26,55 @@ def _unflatten_tensors(
     return tensors
 
 
-class _PotentialKey(pydantic.BaseModel):
-    """
+if pydantic.__version__.startswith("1."):
+    _PotentialKey = openff.interchange.models.PotentialKey
+    PotentialKeyList = list[_PotentialKey]
+else:
 
-    TODO: Needed until interchange upgrades to pydantic >=2
-    """
+    class _PotentialKey(pydantic.BaseModel):
+        """
 
-    id: str
-    mult: int | None = None
-    associated_handler: str | None = None
-    bond_order: float | None = None
+        TODO: Needed until interchange upgrades to pydantic >=2
+        """
 
-    def __hash__(self) -> int:
-        return hash((self.id, self.mult, self.associated_handler, self.bond_order))
+        id: str
+        mult: int | None = None
+        associated_handler: str | None = None
+        bond_order: float | None = None
 
-    def __eq__(self, other: object) -> bool:
-        import openff.interchange.models
+        def __hash__(self) -> int:
+            return hash((self.id, self.mult, self.associated_handler, self.bond_order))
 
-        return (
-            isinstance(other, (_PotentialKey, openff.interchange.models.PotentialKey))
-            and self.id == other.id
-            and self.mult == other.mult
-            and self.associated_handler == other.associated_handler
-            and self.bond_order == other.bond_order
-        )
+        def __eq__(self, other: object) -> bool:
+            import openff.interchange.models
 
+            return (
+                isinstance(
+                    other, (_PotentialKey, openff.interchange.models.PotentialKey)
+                )
+                and self.id == other.id
+                and self.mult == other.mult
+                and self.associated_handler == other.associated_handler
+                and self.bond_order == other.bond_order
+            )
 
-def _convert_keys(value: typing.Any) -> typing.Any:
-    if not isinstance(value, list):
+    def _convert_keys(value: typing.Any) -> typing.Any:
+        if not isinstance(value, list):
+            return value
+
+        value = [
+            (
+                _PotentialKey(**v.dict())
+                if isinstance(v, openff.interchange.models.PotentialKey)
+                else v
+            )
+            for v in value
+        ]
         return value
 
-    value = [
-        _PotentialKey(**v.dict())
-        if isinstance(v, openff.interchange.models.PotentialKey)
-        else v
-        for v in value
+    PotentialKeyList = typing.Annotated[
+        list[_PotentialKey], pydantic.BeforeValidator(_convert_keys)
     ]
-    return value
-
-
-PotentialKeyList = typing.Annotated[
-    list[_PotentialKey], pydantic.BeforeValidator(_convert_keys)
-]
 
 
 class AttributeConfig(pydantic.BaseModel):
@@ -89,17 +96,47 @@ class AttributeConfig(pydantic.BaseModel):
         "none indicates no constraint.",
     )
 
-    @pydantic.model_validator(mode="after")
-    def _validate_keys(self):
-        """Ensure that the keys in `scales` and `limits` match `cols`."""
+    regularize: dict[str, float] = pydantic.Field(
+        {},
+        description="The regularization strength to apply to each parameter, e.g. "
+        "'k': 0.01, 'epsilon': 0.001. Parameters not listed are not regularized.",
+    )
 
-        if any(key not in self.cols for key in self.scales):
-            raise ValueError("cannot scale non-trainable parameters")
+    if pydantic.__version__.startswith("1."):
 
-        if any(key not in self.cols for key in self.limits):
-            raise ValueError("cannot clamp non-trainable parameters")
+        @pydantic.root_validator
+        def _validate_keys(cls, values):
+            cols = values.get("cols")
 
-        return self
+            scales = values.get("scales")
+            limits = values.get("limits")
+            regularize = values.get("regularize")
+
+            if any(key not in cols for key in scales):
+                raise ValueError("cannot scale non-trainable parameters")
+            if any(key not in cols for key in limits):
+                raise ValueError("cannot clamp non-trainable parameters")
+            if any(key not in cols for key in regularize):
+                raise ValueError("cannot regularize non-trainable parameters")
+
+            return values
+
+    else:
+
+        @pydantic.model_validator(mode="after")
+        def _validate_keys(self):
+            """Ensure that the keys in `scales` and `limits` match `cols`."""
+
+            if any(key not in self.cols for key in self.scales):
+                raise ValueError("cannot scale non-trainable parameters")
+
+            if any(key not in self.cols for key in self.limits):
+                raise ValueError("cannot clamp non-trainable parameters")
+
+            if any(key not in self.cols for key in self.regularize):
+                raise ValueError("cannot regularize non-trainable parameters")
+
+            return self
 
 
 class ParameterConfig(AttributeConfig):
@@ -118,18 +155,36 @@ class ParameterConfig(AttributeConfig):
         "If ``None``, no parameters will be excluded.",
     )
 
-    @pydantic.model_validator(mode="after")
-    def _validate_include_exclude(self):
-        """Ensure that the keys in `include` and `exclude` are disjoint."""
+    if pydantic.__version__.startswith("1."):
 
-        if self.include is not None and self.exclude is not None:
-            include = {*self.include}
-            exclude = {*self.exclude}
+        @pydantic.root_validator
+        def _validate_include_exclude(cls, values):
+            include = values.get("include")
+            exclude = values.get("exclude")
 
-            if include & exclude:
-                raise ValueError("cannot include and exclude the same parameter")
+            if include is not None and exclude is not None:
+                include = {*include}
+                exclude = {*exclude}
 
-        return self
+                if include & exclude:
+                    raise ValueError("cannot include and exclude the same parameter")
+
+            return values
+
+    else:
+
+        @pydantic.model_validator(mode="after")
+        def _validate_include_exclude(self):
+            """Ensure that the keys in `include` and `exclude` are disjoint."""
+
+            if self.include is not None and self.exclude is not None:
+                include = {*self.include}
+                exclude = {*self.exclude}
+
+                if include & exclude:
+                    raise ValueError("cannot include and exclude the same parameter")
+
+            return self
 
 
 class Trainable:
@@ -167,13 +222,16 @@ class Trainable:
         clamp_lower = []
         clamp_upper = []
 
+        regularized_idxs = []
+        regularization_weights = []
+
         for potential_type, potential in zip(potential_types, potentials, strict=True):
             potential_config = config[potential_type]
 
             potential_cols = getattr(potential, f"{attr[:-1]}_cols")
-            assert (
-                len({*potential_config.cols} - {*potential_cols}) == 0
-            ), f"unknown columns: {potential_cols}"
+            assert len({*potential_config.cols} - {*potential_cols}) == 0, (
+                f"unknown columns: {potential_cols}"
+            )
 
             potential_values = getattr(potential, attr).detach().clone()
             potential_values_flat = potential_values.flatten()
@@ -201,13 +259,24 @@ class Trainable:
                     key_to_row[key] for key in unfrozen_keys if key not in excluded_keys
                 }
 
-            unfrozen_idxs.extend(
-                unfrozen_col_offset + col_idx + row_idx * potential_values.shape[-1]
-                for row_idx in range(n_rows)
-                if row_idx in unfrozen_rows
-                for col_idx, col in enumerate(potential_cols)
-                if col in potential_config.cols
-            )
+            # Track unfrozen and regularized indices
+            for row_idx in range(n_rows):
+                if row_idx not in unfrozen_rows:
+                    continue
+                for col_idx, col in enumerate(potential_cols):
+                    if col not in potential_config.cols:
+                        continue
+
+                    flat_idx = (
+                        unfrozen_col_offset
+                        + col_idx
+                        + row_idx * potential_values.shape[-1]
+                    )
+                    unfrozen_idxs.append(flat_idx)
+
+                    if col in potential_config.regularize:
+                        regularized_idxs.append(flat_idx)
+                        regularization_weights.append(potential_config.regularize[col])
 
             unfrozen_col_offset += len(potential_values_flat)
 
@@ -249,6 +318,12 @@ class Trainable:
             smee.utils.tensor_like(scales, values),
             smee.utils.tensor_like(clamp_lower, values),
             smee.utils.tensor_like(clamp_upper, values),
+            torch.tensor(regularized_idxs),
+            (
+                smee.utils.tensor_like(regularization_weights, values)
+                if regularization_weights
+                else smee.utils.tensor_like([], values)
+            ),
         )
 
     def _prepare_vsites(
@@ -333,6 +408,8 @@ class Trainable:
             param_scales,
             param_clamp_lower,
             param_clamp_upper,
+            param_regularized_idxs,
+            param_regularization_weights,
         ) = self._prepare(force_field, parameters, "parameters")
         (
             self._attr_types,
@@ -342,6 +419,8 @@ class Trainable:
             attr_scales,
             attr_clamp_lower,
             attr_clamp_upper,
+            attr_regularized_idxs,
+            attr_regularization_weights,
         ) = self._prepare(force_field, attributes, "attributes")
 
         values = [param_values, attr_values]
@@ -376,6 +455,34 @@ class Trainable:
 
         self._clamp_lower = torch.cat(clamp_lower)[self._unfrozen_idxs]
         self._clamp_upper = torch.cat(clamp_upper)[self._unfrozen_idxs]
+
+        # Store regularization information
+        all_regularized_idxs = torch.cat(
+            [param_regularized_idxs, attr_regularized_idxs + len(param_scales)]
+        ).long()
+        all_regularization_weights = torch.cat(
+            [param_regularization_weights, attr_regularization_weights]
+        )
+
+        # Map global indices to unfrozen indices
+        idx_mapping = {idx.item(): i for i, idx in enumerate(self._unfrozen_idxs)}
+        self._regularized_idxs = torch.tensor(
+            [
+                idx_mapping[idx.item()]
+                for idx in all_regularized_idxs
+                if idx.item() in idx_mapping
+            ]
+        ).long()
+        regularization_weights = [
+            all_regularization_weights[i]
+            for i, idx in enumerate(all_regularized_idxs)
+            if idx.item() in idx_mapping
+        ]
+        self._regularization_weights = (
+            torch.stack(regularization_weights)
+            if regularization_weights
+            else torch.tensor([])
+        )
 
     @torch.no_grad()
     def to_values(self) -> torch.Tensor:
@@ -428,3 +535,14 @@ class Trainable:
         return (values_flat / self._scales).clamp(
             min=self._clamp_lower, max=self._clamp_upper
         ) * self._scales
+
+    @property
+    def regularized_idxs(self) -> torch.Tensor:
+        """The indices (within the tensor returned by to_values)
+        of parameters/attributes to regularize."""
+        return self._regularized_idxs
+
+    @property
+    def regularization_weights(self) -> torch.Tensor:
+        """The regularization weights for parameters/attributes to regularize."""
+        return self._regularization_weights

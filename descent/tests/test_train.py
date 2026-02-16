@@ -128,6 +128,23 @@ class TestAttributeConfig:
         ):
             AttributeConfig(cols=["scale_14"], limits={"scale_15": (0.1, 0.2)})
 
+    def test_validate_keys_regularize(self):
+        with pytest.raises(
+            pydantic.ValidationError, match="cannot regularize non-trainable parameters"
+        ):
+            AttributeConfig(cols=["scale_14"], regularize={"scale_15": 0.01})
+
+    def test_regularize_field(self):
+        config = AttributeConfig(
+            cols=["scale_14", "scale_15"],
+            regularize={"scale_14": 0.01, "scale_15": 0.001},
+        )
+        assert config.regularize == {"scale_14": 0.01, "scale_15": 0.001}
+
+    def test_regularize_empty(self):
+        config = AttributeConfig(cols=["scale_14"])
+        assert config.regularize == {}
+
 
 class TestParameterConfig:
     def test_validate_include_exclude(self):
