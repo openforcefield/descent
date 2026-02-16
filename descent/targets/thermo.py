@@ -696,7 +696,7 @@ def predict(
 
             verbose_rows.append(
                 {
-                    "type": f'{entry["type"]} [{entry["units"]}]',
+                    "type": f"{entry['type']} [{entry['units']}]",
                     "smiles_a": descent.utils.molecule.unmap_smiles(entry["smiles_a"]),
                     "smiles_b": (
                         ""

@@ -24,10 +24,14 @@ jobs:
         make env
         make lint
         make test
-        make docs-build
+        make docs
+        
+        mamba install --name descent --yes "pydantic <2" "openff-toolkit>=0.9.2" "openff-interchange>=0.3.17"
+        make test
 
     - name: CodeCov
-      uses: codecov/codecov-action@v3.1.1
+      uses: codecov/codecov-action@v4.1.1
       with:
         file: ./coverage.xml
         flags: unittests
+        token: ${{ secrets.CODECOV_TOKEN }}

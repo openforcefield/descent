@@ -78,11 +78,12 @@ def test_extract_smiles(mock_meoh_entry, mock_hoh_entry):
                     [9.0, 10.0, 11.0],
                     [12.0, 13.0, 14.0],
                     [15.0, 16.0, 17.0],
-                ]
+                ],
+                dtype=torch.float64,
             )
             / math.sqrt(6.0 * 3.0),
             torch.tensor([7.899425506591797, -7.89942741394043]) / math.sqrt(2.0),
-            torch.tensor(
+            -torch.tensor(
                 [
                     [0.0, 83.55978393554688, 0.0],
                     [-161.40325927734375, -41.77988815307617, 0.0],
@@ -90,7 +91,8 @@ def test_extract_smiles(mock_meoh_entry, mock_hoh_entry):
                     [0.0, -137.45770263671875, 0.0],
                     [102.62999725341797, 68.72884368896484, 0.0],
                     [-102.62999725341797, 68.72884368896484, 0.0],
-                ]
+                ],
+                dtype=torch.float64,
             )
             / math.sqrt(6.0 * 3.0),
         ),
@@ -106,10 +108,11 @@ def test_extract_smiles(mock_meoh_entry, mock_hoh_entry):
                     [9.0, 10.0, 11.0],
                     [12.0, 13.0, 14.0],
                     [15.0, 16.0, 17.0],
-                ]
+                ],
+                dtype=torch.float64,
             ),
             torch.tensor([0.0, -15.798852920532227]),
-            torch.tensor(
+            -torch.tensor(
                 [
                     [0.0, 83.55978393554688, 0.0],
                     [-161.40325927734375, -41.77988815307617, 0.0],
@@ -117,7 +120,8 @@ def test_extract_smiles(mock_meoh_entry, mock_hoh_entry):
                     [0.0, -137.45770263671875, 0.0],
                     [102.62999725341797, 68.72884368896484, 0.0],
                     [-102.62999725341797, 68.72884368896484, 0.0],
-                ]
+                ],
+                dtype=torch.float64,
             ),
         ),
     ],
@@ -135,7 +139,7 @@ def test_predict(
 
     force_field, [topology] = smee.converters.convert_interchange(
         openff.interchange.Interchange.from_smirnoff(
-            openff.toolkit.ForceField("openff-1.3.0.offxml"),
+            openff.toolkit.ForceField("openff_unconstrained-1.3.0.offxml"),
             openff.toolkit.Molecule.from_mapped_smiles(
                 mock_hoh_entry["smiles"]
             ).to_topology(),
