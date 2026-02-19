@@ -409,7 +409,7 @@ def report(
         col: rmse_format for col in data_stats.columns if col.startswith("RMSE")
     }
     formatters_full = {
-        **{col: "html" for col in ["Dimer", "Energy [kcal/mol]"]},
+        **dict.fromkeys(["Dimer", "Energy [kcal/mol]"], "html"),
         **{col: rmse_format for col in data_full.columns if col.startswith("RMSE")},
     }
 
