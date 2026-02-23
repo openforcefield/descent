@@ -12,6 +12,7 @@ dependencies:
   - smee-base >=0.10.0
   - pydantic
   - pydantic-units
+  - openff-interchange>=0.3.17
 
   - pytorch
   - pyarrow
