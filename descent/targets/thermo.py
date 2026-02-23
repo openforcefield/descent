@@ -408,7 +408,7 @@ def select_config(
     phase: Phase,
     temperature: float,
     pressure: float | None,
-    custom_config: dict[str, SimulationConfig] | None,
+    custom_config: dict[str, SimulationConfig] | None = None,
 ) -> SimulationConfig:
     """
     A helper method to choose the simulation config based on the phase
@@ -554,7 +554,7 @@ def _compute_observables(
     force_field: smee.TensorForceField,
     output_dir: pathlib.Path,
     cached_dir: pathlib.Path | None,
-    simulation_config: dict[str, SimulationConfig] | None,
+    simulation_config: dict[str, SimulationConfig] | None = None,
 ) -> _Observables:
     traj_hash = hashlib.sha256(pickle.dumps(key)).hexdigest()
     traj_name = f"{phase}-{traj_hash}-frames.msgpack"
