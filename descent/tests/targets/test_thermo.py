@@ -409,7 +409,7 @@ def test_compute_observables_reweighted(tmp_cwd, mocker):
     expected_path = cached_dir / f"{phase}-{expected_hash}-frames.msgpack"
     expected_path.touch()
 
-    result = _compute_observables(phase, key, mock_system, mock_ff, tmp_cwd, cached_dir)
+    result = _compute_observables(phase, key, mock_system, mock_ff, tmp_cwd, cached_dir, None)
     assert result.mean == mock_result
     assert {*result.std} == {*result.mean}
 
@@ -450,7 +450,7 @@ def test_compute_observables_simulated(tmp_cwd, mocker):
     expected_path = tmp_cwd / f"{phase}-{expected_hash}-frames.msgpack"
     expected_path.touch()
 
-    result = _compute_observables(phase, key, mock_system, mock_ff, tmp_cwd, cached_dir)
+    result = _compute_observables(phase, key, mock_system, mock_ff, tmp_cwd, cached_dir, None)
     assert result == mock_result
 
     mock_simulate.assert_called_once_with(
@@ -614,6 +614,7 @@ def test_predict(tmp_cwd, mock_density_pure, mocker):
         mocker.ANY,
         mock_ff,
         tmp_cwd,
+        None,
         None,
     )
 
