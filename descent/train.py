@@ -357,14 +357,26 @@ class Trainable:
             key_to_row[key] for key in unfrozen_keys if key not in excluded_keys
         }
 
-        unfrozen_idxs = [
-            col_idx + row_idx * vsite_parameters.shape[1]
-            for row_idx in range(n_rows)
-            if row_idx in unfrozen_rows
+        unfrozen_idxs = []
+        regularized_idxs = []
+        regularization_weights = []
+
+        for row_idx in range(n_rows):
+            if row_idx not in unfrozen_rows:
+                continue
+
             # the vsite model has no parameter cols so define here
-            for col_idx, col in enumerate(vsite_cols)
-            if col in config.cols
-        ]
+            for col_idx, col in enumerate(vsite_cols):
+                if col not in config.cols:
+                    continue
+
+                flat_idx = col_idx + row_idx * vsite_parameters.shape[1]
+                unfrozen_idxs.append(flat_idx)
+
+                if col in config.regularize:
+                    regularized_idxs.append(flat_idx)
+                    regularization_weights.append(config.regularize[col])
+
         vsite_scales = [config.scales.get(col, 1.0) for col in vsite_cols] * n_rows
         clamp_lower = [
             config.limits.get(col, (None, None))[0] for col in vsite_cols
@@ -380,6 +392,12 @@ class Trainable:
             smee.utils.tensor_like(vsite_scales, vsite_parameters),
             smee.utils.tensor_like(clamp_lower, vsite_parameters),
             smee.utils.tensor_like(clamp_upper, vsite_parameters),
+            torch.tensor(regularized_idxs),
+            (
+                smee.utils.tensor_like(regularization_weights, vsite_parameters)
+                if regularization_weights
+                else smee.utils.tensor_like([], vsite_parameters)
+            ),
         )
 
     def __init__(
@@ -436,6 +454,8 @@ class Trainable:
                 vsite_scales,
                 vsite_clamp_lower,
                 vsite_clamp_upper,
+                vsite_regularized_idxs,
+                vsite_regularization_weights,
             ) = self._prepare_vsites(force_field, vsites)
             self._fit_vsites = True
 
@@ -457,12 +477,23 @@ class Trainable:
         self._clamp_upper = torch.cat(clamp_upper)[self._unfrozen_idxs]
 
         # Store regularization information
-        all_regularized_idxs = torch.cat(
-            [param_regularized_idxs, attr_regularized_idxs + len(param_scales)]
-        ).long()
-        all_regularization_weights = torch.cat(
-            [param_regularization_weights, attr_regularization_weights]
-        )
+        all_regularized_idxs = [
+            param_regularized_idxs,
+            attr_regularized_idxs + len(param_scales),
+        ]
+        all_regularization_weights = [
+            param_regularization_weights,
+            attr_regularization_weights,
+        ]
+
+        if self._fit_vsites:
+            all_regularized_idxs.append(
+                vsite_regularized_idxs + len(param_scales) + len(attr_scales)
+            )
+            all_regularization_weights.append(vsite_regularization_weights)
+
+        all_regularized_idxs = torch.cat(all_regularized_idxs).long()
+        all_regularization_weights = torch.cat(all_regularization_weights)
 
         # Map global indices to unfrozen indices
         idx_mapping = {idx.item(): i for i, idx in enumerate(self._unfrozen_idxs)}

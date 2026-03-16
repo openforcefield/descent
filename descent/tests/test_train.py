@@ -444,3 +444,27 @@ class TestTrainable:
             ff.v_sites.parameters[0],
             torch.tensor([-0.0100, 3.1416, 0.0000], dtype=torch.float64),
         )
+
+    def test_init_vsites_regularization(
+        self, water_sites_ff, mock_water_parameter_config
+    ):
+        vsite_config = ParameterConfig(
+            cols=["distance"],
+            scales={"distance": 10.0},
+            limits={"distance": (-1.0, -0.01)},
+            regularize={"distance": 0.25},
+            include=[water_sites_ff.v_sites.keys[0]],
+        )
+
+        trainable = Trainable(
+            water_sites_ff,
+            parameters=mock_water_parameter_config,
+            attributes={},
+            vsites=vsite_config,
+        )
+
+        assert torch.equal(trainable.regularized_idxs, torch.tensor([2]))
+        assert torch.allclose(
+            trainable.regularization_weights,
+            torch.tensor([0.25], dtype=torch.float64),
+        )
