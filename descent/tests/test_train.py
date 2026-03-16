@@ -49,11 +49,11 @@ def mock_ff() -> smee.TensorForceField:
 
 @pytest.fixture()
 def water_sites_ff():
-    interachange = openff.interchange.Interchange.from_smirnoff(
+    interchange = openff.interchange.Interchange.from_smirnoff(
         openff.toolkit.ForceField("tip4p_fb.offxml"),
         openff.toolkit.Molecule.from_smiles("O").to_topology(),
     )
-    ff, _ = smee.converters.convert_interchange(interachange)
+    ff, _ = smee.converters.convert_interchange(interchange)
     # make sure we have vsites in the force field
     assert ff.v_sites is not None
     # this is awkward to specify in the yaml config file can we make it easier?
