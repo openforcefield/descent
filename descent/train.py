@@ -343,8 +343,9 @@ class Trainable:
         vsite_parameters = force_field.v_sites.parameters.detach().clone()
         n_rows = vsite_parameters.shape[0]
         vsite_parameters_flat = vsite_parameters.flatten()
-        # define the cols as they are not on the tensor model
-        vsite_cols = ["distance", "inPlaneAngle", "outOfPlaneAngle"]
+        # Getting the column names from this dict is a bit awkward but
+        # avoids hard-coding them.
+        vsite_cols = list(force_field.v_sites.default_units().keys())
 
         all_keys = [_PotentialKey(**key.dict()) for key in force_field.v_sites.keys]
         excluded_keys = config.exclude or []
