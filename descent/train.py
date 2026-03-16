@@ -196,6 +196,80 @@ class Trainable:
     parameters so they are not updated during training.
     """
 
+    @staticmethod
+    def _prepare_rows(
+        config: AttributeConfig,
+        n_rows: int,
+        all_keys: list[_PotentialKey] | None = None,
+    ) -> set[int]:
+        """Determine which rows should be trainable."""
+        if not isinstance(config, ParameterConfig):
+            return set(range(n_rows))
+
+        assert all_keys is not None
+
+        excluded_keys = config.exclude or []
+        unfrozen_keys = config.include or all_keys
+
+        key_to_row = {key: row_idx for row_idx, key in enumerate(all_keys)}
+        assert len(key_to_row) == len(all_keys), "duplicate keys found"
+
+        return {key_to_row[key] for key in unfrozen_keys if key not in excluded_keys}
+
+    @staticmethod
+    def _prepare_values(
+        values: torch.Tensor,
+        cols: list[str] | tuple[str, ...],
+        config: AttributeConfig,
+        unfrozen_rows: set[int],
+        n_rows: int,
+        idx_offset: int = 0,
+    ) -> tuple[
+        list[int],
+        list[float],
+        list[float],
+        list[float],
+        list[int],
+        list[float],
+    ]:
+        """Prepare unfrozen indices and transform metadata for a value block."""
+        row_width = values.shape[-1]
+
+        unfrozen_idxs = []
+        scales = []
+        clamp_lower = []
+        clamp_upper = []
+        regularized_idxs = []
+        regularization_weights = []
+
+        for row_idx in range(n_rows):
+            for col_idx, col in enumerate(cols):
+                flat_idx = idx_offset + col_idx + row_idx * row_width
+
+                scales.append(config.scales.get(col, 1.0))
+
+                lower, upper = config.limits.get(col, (None, None))
+                clamp_lower.append(-torch.inf if lower is None else lower)
+                clamp_upper.append(torch.inf if upper is None else upper)
+
+                if row_idx not in unfrozen_rows or col not in config.cols:
+                    continue
+
+                unfrozen_idxs.append(flat_idx)
+
+                if col in config.regularize:
+                    regularized_idxs.append(flat_idx)
+                    regularization_weights.append(config.regularize[col])
+
+        return (
+            unfrozen_idxs,
+            scales,
+            clamp_lower,
+            clamp_upper,
+            regularized_idxs,
+            regularization_weights,
+        )
+
     @classmethod
     def _prepare(
         cls,
@@ -241,68 +315,38 @@ class Trainable:
 
             n_rows = 1 if attr == "attributes" else len(potential_values)
 
-            unfrozen_rows = set(range(n_rows))
-
+            all_keys = None
             if isinstance(potential_config, ParameterConfig):
                 all_keys = [
                     _PotentialKey(**v.dict())
                     for v in getattr(potential, f"{attr[:-1]}_keys")
                 ]
 
-                excluded_keys = potential_config.exclude or []
-                unfrozen_keys = potential_config.include or all_keys
+            unfrozen_rows = cls._prepare_rows(potential_config, n_rows, all_keys)
+            (
+                potential_unfrozen_idxs,
+                potential_scales,
+                potential_clamp_lower,
+                potential_clamp_upper,
+                potential_regularized_idxs,
+                potential_regularization_weights,
+            ) = cls._prepare_values(
+                potential_values,
+                potential_cols,
+                potential_config,
+                unfrozen_rows,
+                n_rows,
+                unfrozen_col_offset,
+            )
 
-                key_to_row = {key: row_idx for row_idx, key in enumerate(all_keys)}
-                assert len(key_to_row) == len(all_keys), "duplicate keys found"
-
-                unfrozen_rows = {
-                    key_to_row[key] for key in unfrozen_keys if key not in excluded_keys
-                }
-
-            # Track unfrozen and regularized indices
-            for row_idx in range(n_rows):
-                if row_idx not in unfrozen_rows:
-                    continue
-                for col_idx, col in enumerate(potential_cols):
-                    if col not in potential_config.cols:
-                        continue
-
-                    flat_idx = (
-                        unfrozen_col_offset
-                        + col_idx
-                        + row_idx * potential_values.shape[-1]
-                    )
-                    unfrozen_idxs.append(flat_idx)
-
-                    if col in potential_config.regularize:
-                        regularized_idxs.append(flat_idx)
-                        regularization_weights.append(potential_config.regularize[col])
+            unfrozen_idxs.extend(potential_unfrozen_idxs)
+            scales.extend(potential_scales)
+            clamp_lower.extend(potential_clamp_lower)
+            clamp_upper.extend(potential_clamp_upper)
+            regularized_idxs.extend(potential_regularized_idxs)
+            regularization_weights.extend(potential_regularization_weights)
 
             unfrozen_col_offset += len(potential_values_flat)
-
-            potential_scales = [
-                potential_config.scales.get(col, 1.0) for col in potential_cols
-            ] * n_rows
-
-            scales.extend(potential_scales)
-
-            potential_clamp_lower = [
-                potential_config.limits.get(col, (None, None))[0]
-                for col in potential_cols
-            ] * n_rows
-            potential_clamp_lower = [
-                -torch.inf if x is None else x for x in potential_clamp_lower
-            ]
-            clamp_lower.extend(potential_clamp_lower)
-
-            potential_clamp_upper = [
-                potential_config.limits.get(col, (None, None))[1]
-                for col in potential_cols
-            ] * n_rows
-            potential_clamp_upper = [
-                torch.inf if x is None else x for x in potential_clamp_upper
-            ]
-            clamp_upper.extend(potential_clamp_upper)
 
         values = (
             smee.utils.tensor_like([], force_field.potentials[0].parameters)
@@ -348,45 +392,22 @@ class Trainable:
         vsite_cols = list(force_field.v_sites.default_units().keys())
 
         all_keys = [_PotentialKey(**key.dict()) for key in force_field.v_sites.keys]
-        excluded_keys = config.exclude or []
-        unfrozen_keys = config.include or all_keys
+        unfrozen_rows = self._prepare_rows(config, n_rows, all_keys)
+        (
+            unfrozen_idxs,
+            vsite_scales,
+            clamp_lower,
+            clamp_upper,
+            regularized_idxs,
+            regularization_weights,
+        ) = self._prepare_values(
+            vsite_parameters,
+            vsite_cols,
+            config,
+            unfrozen_rows,
+            n_rows,
+        )
 
-        key_to_row = {key: row_idx for row_idx, key in enumerate(all_keys)}
-        assert len(key_to_row) == len(all_keys), "duplicate keys found"
-
-        unfrozen_rows = {
-            key_to_row[key] for key in unfrozen_keys if key not in excluded_keys
-        }
-
-        unfrozen_idxs = []
-        regularized_idxs = []
-        regularization_weights = []
-
-        for row_idx in range(n_rows):
-            if row_idx not in unfrozen_rows:
-                continue
-
-            # the vsite model has no parameter cols so define here
-            for col_idx, col in enumerate(vsite_cols):
-                if col not in config.cols:
-                    continue
-
-                flat_idx = col_idx + row_idx * vsite_parameters.shape[1]
-                unfrozen_idxs.append(flat_idx)
-
-                if col in config.regularize:
-                    regularized_idxs.append(flat_idx)
-                    regularization_weights.append(config.regularize[col])
-
-        vsite_scales = [config.scales.get(col, 1.0) for col in vsite_cols] * n_rows
-        clamp_lower = [
-            config.limits.get(col, (None, None))[0] for col in vsite_cols
-        ] * n_rows
-        clamp_lower = [-torch.inf if x is None else x for x in clamp_lower]
-        clamp_upper = [
-            config.limits.get(col, (None, None))[1] for col in vsite_cols
-        ] * n_rows
-        clamp_upper = [torch.inf if x is None else x for x in clamp_upper]
         return (
             vsite_parameters_flat,
             torch.tensor(unfrozen_idxs),
