@@ -37,7 +37,7 @@ def mock_hoh_entry() -> Entry:
 
 @pytest.mark.parametrize(
     "box_vectors",
-    [None, torch.eye(3) * 20.0],
+    [None, torch.eye(3).repeat(2, 1, 1) * 20.0],
     ids=["non-periodic", "periodic"],
 )
 def test_create_dataset(mock_meoh_entry, box_vectors):
@@ -139,7 +139,7 @@ def test_extract_smiles(mock_meoh_entry, mock_hoh_entry):
             id="non-periodic-min",
         ),
         pytest.param(
-            torch.eye(3) * 30.0,
+            torch.eye(3).repeat(2, 1, 1) * 30.0,
             "mean",
             True,
             torch.tensor([-0.5, 0.5]) / math.sqrt(2.0),
@@ -155,13 +155,13 @@ def test_extract_smiles(mock_meoh_entry, mock_hoh_entry):
                 dtype=torch.float64,
             )
             / math.sqrt(6.0 * 3.0),
-            torch.tensor([5.585737228393555, -5.585738658905029]),
+            torch.tensor([5.585737228393555, -5.585737705230713]),
             torch.tensor(
                 [
-                    [0.0, -19.695231274883554, 0.0],
+                    [0.0, -19.695229476617897, 0.0],
                     [38.04311560258793, 9.847614738308948, 0.0],
                     [-38.04311560258793, 9.847614738308948, 0.0],
-                    [0.0, 32.39909339680162, 0.0],
+                    [0.0, 32.3990898002703, 0.0],
                     [-24.190123962094730, -16.19954490013515, 0.0],
                     [24.190123962094730, -16.19954490013515, 0.0],
                 ],
@@ -170,7 +170,7 @@ def test_extract_smiles(mock_meoh_entry, mock_hoh_entry):
             id="periodic-mean-normalized",
         ),
         pytest.param(
-            torch.eye(3) * 30.0,
+            torch.eye(3).repeat(2, 1, 1) * 30.0,
             "min",
             False,
             torch.tensor([0.0, 1.0]),
@@ -185,13 +185,13 @@ def test_extract_smiles(mock_meoh_entry, mock_hoh_entry):
                 ],
                 dtype=torch.float64,
             ),
-            torch.tensor([0.0, -15.798852920532227]),
+            torch.tensor([0.0, -15.79885196685791]),
             torch.tensor(
                 [
-                    [0.0, -83.55978393554688, 0.0],
+                    [0.0, -83.55977630615234, 0.0],
                     [161.40325927734375, 41.77988815307617, 0.0],
                     [-161.40325927734375, 41.77988815307617, 0.0],
-                    [0.0, 137.45770263671875, 0.0],
+                    [0.0, 137.4576873779297, 0.0],
                     [-102.62999725341797, -68.72884368896484, 0.0],
                     [102.62999725341797, -68.72884368896484, 0.0],
                 ],

@@ -36,8 +36,8 @@ class Entry(typing.TypedDict):
     """The reference forces [kcal/mol/Å] with ``shape=(n_confs, n_particles, 3)``."""
 
     box_vectors: torch.Tensor | None
-    """The box vectors [Å] for periodic systems with ``shape=(3, 3)``, or ``None``
-    for non-periodic systems."""
+    """The box vectors [Å] for periodic systems with ``shape=(n_confs, 3, 3)``, or
+    ``None`` for non-periodic systems."""
 
 
 def create_dataset(entries: list[Entry]) -> datasets.Dataset:
@@ -128,12 +128,22 @@ def predict(
         )
         box_vectors = entry.get("box_vectors", None)
 
-        if box_vectors is not None:
-            box_vectors = smee.utils.tensor_like(box_vectors, coords_flat).reshape(3, 3)
-
         topology = topologies[smiles]
 
-        energy_pred = smee.compute_energy(topology, force_field, coords, box_vectors)
+        if box_vectors is not None:
+            # smee does not support batched periodic evaluations, so we loop over conformers.
+            box_vectors = smee.utils.tensor_like(box_vectors, coords_flat).reshape(
+                len(energy_ref), 3, 3
+            )
+            energy_pred = torch.cat(
+                [
+                    smee.compute_energy(topology, force_field, coords[i], box_vectors[i])
+                    for i in range(len(energy_ref))
+                ]
+            )
+        else:
+            energy_pred = smee.compute_energy(topology, force_field, coords, None)
+
         forces_pred = -torch.autograd.grad(
             energy_pred.sum(),
             coords,
