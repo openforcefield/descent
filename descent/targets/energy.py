@@ -13,6 +13,7 @@ DATA_SCHEMA = pyarrow.schema(
     [
         ("smiles", pyarrow.string()),
         ("coords", pyarrow.list_(pyarrow.float64())),
+        ("box_vectors", pyarrow.list_(pyarrow.float64())),
         ("energy", pyarrow.list_(pyarrow.float64())),
         ("forces", pyarrow.list_(pyarrow.float64())),
     ]
@@ -34,6 +35,10 @@ class Entry(typing.TypedDict):
     forces: torch.Tensor
     """The reference forces [kcal/mol/Å] with ``shape=(n_confs, n_particles, 3)``."""
 
+    box_vectors: torch.Tensor | None
+    """The box vectors [Å] for periodic systems with ``shape=(3, 3)``, or ``None``
+    for non-periodic systems."""
+
 
 def create_dataset(entries: list[Entry]) -> datasets.Dataset:
     """Create a dataset from a list of existing entries.
@@ -50,6 +55,9 @@ def create_dataset(entries: list[Entry]) -> datasets.Dataset:
             {
                 "smiles": entry["smiles"],
                 "coords": torch.tensor(entry["coords"]).flatten().tolist(),
+                "box_vectors": None
+                if entry.get("box_vectors") is None
+                else torch.tensor(entry["box_vectors"]).flatten().tolist(),
                 "energy": torch.tensor(entry["energy"]).flatten().tolist(),
                 "forces": torch.tensor(entry["forces"]).flatten().tolist(),
             }
@@ -118,9 +126,14 @@ def predict(
         coords = (
             (coords_flat.reshape(len(energy_ref), -1, 3)).detach().requires_grad_(True)
         )
+        box_vectors = entry.get("box_vectors", None)
+
+        if box_vectors is not None:
+            box_vectors = smee.utils.tensor_like(box_vectors, coords_flat).reshape(3, 3)
+
         topology = topologies[smiles]
 
-        energy_pred = smee.compute_energy(topology, force_field, coords)
+        energy_pred = smee.compute_energy(topology, force_field, coords, box_vectors)
         forces_pred = -torch.autograd.grad(
             energy_pred.sum(),
             coords,
