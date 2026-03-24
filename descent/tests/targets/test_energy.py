@@ -45,6 +45,7 @@ def test_create_dataset(mock_meoh_entry, box_vectors):
 
     expected_entries = [
         {
+            "id": None,
             "smiles": entry["smiles"],
             "coords": pytest.approx(entry["coords"].flatten()),
             "energy": pytest.approx(entry["energy"]),
