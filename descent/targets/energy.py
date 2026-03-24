@@ -11,6 +11,7 @@ import torch
 
 DATA_SCHEMA = pyarrow.schema(
     [
+        ("id", pyarrow.string()),
         ("smiles", pyarrow.string()),
         ("coords", pyarrow.list_(pyarrow.float64())),
         ("box_vectors", pyarrow.list_(pyarrow.float64())),
@@ -22,6 +23,9 @@ DATA_SCHEMA = pyarrow.schema(
 
 class Entry(typing.TypedDict):
     """Represents a set of reference energies and forces."""
+
+    id: str | None
+    """An optional identifier for the entry (e.g. a run name). Defaults to ``None``."""
 
     smiles: str
     """The indexed SMILES description of the molecule the energies and forces were
@@ -53,6 +57,7 @@ def create_dataset(entries: list[Entry]) -> datasets.Dataset:
     table = pyarrow.Table.from_pylist(
         [
             {
+                "id": entry.get("id"),
                 "smiles": entry["smiles"],
                 "coords": torch.tensor(entry["coords"]).flatten().tolist(),
                 "box_vectors": None
