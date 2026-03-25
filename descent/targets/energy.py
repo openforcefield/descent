@@ -136,13 +136,16 @@ def predict(
         topology = topologies[smiles]
 
         if box_vectors is not None:
-            # smee does not support batched periodic evaluations, so we loop over conformers.
+            # smee does not support batched periodic evaluations,
+            # so we loop over conformers.
             box_vectors = smee.utils.tensor_like(box_vectors, coords_flat).reshape(
                 len(energy_ref), 3, 3
             )
             energy_pred = torch.cat(
                 [
-                    smee.compute_energy(topology, force_field, coords[i], box_vectors[i])
+                    smee.compute_energy(
+                        topology, force_field, coords[i], box_vectors[i]
+                    )
                     for i in range(len(energy_ref))
                 ]
             )
