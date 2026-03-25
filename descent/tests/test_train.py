@@ -10,6 +10,7 @@ import smee.converters
 import smee.utils
 import torch
 
+
 from descent.train import AttributeConfig, ParameterConfig, Trainable, _PotentialKey
 
 
@@ -435,6 +436,11 @@ class TestTrainable:
             attributes={},
             vsites=mock_vsite_configs,
         )
+
+        # The trainable values are, in order, the vdW parameters (eps, sigma)
+        # followed by the vsite distance.  # When we set the last trainable
+        # value to 0.0, this corresponds to the vsite distance, which is the first
+        # parameter in ff.v_sites.parameters.
 
         values = trainable.to_values().detach()
         # set the distance to outside the clamp region
