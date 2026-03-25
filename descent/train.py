@@ -373,17 +373,7 @@ class Trainable:
     def _prepare_vsites(
         self, force_field: smee.TensorForceField, config: ParameterConfig
     ):
-        """
-        Prepare the vsite parameters for optimisation.
-
-        Args:
-            force_field: The tensor force field with parameters
-                which should be optimised.
-            config: The config of the parameters to train.
-
-        Returns:
-
-        """
+        """Prepare the vsite parameters for optimisation."""
         vsite_parameters = force_field.v_sites.parameters.detach().clone()
         n_rows = vsite_parameters.shape[0]
         vsite_parameters_flat = vsite_parameters.flatten()
