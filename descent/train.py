@@ -26,6 +26,29 @@ def _unflatten_tensors(
     return tensors
 
 
+def _tensor_like_or_empty(values: list[float], like: torch.Tensor) -> torch.Tensor:
+    """Create a tensor like `like`, returning an empty one when no values exist."""
+    return (
+        smee.utils.tensor_like(values, like)
+        if values else smee.utils.tensor_like([], like)
+    )
+
+
+def _validate_trainable_keys(
+    cols: list[str],
+    scales: dict[str, float],
+    limits: dict[str, tuple[float | None, float | None]],
+    regularize: dict[str, float],
+) -> None:
+    """Ensure transform dictionaries only reference trainable columns."""
+    if any(key not in cols for key in scales):
+        raise ValueError("cannot scale non-trainable parameters")
+    if any(key not in cols for key in limits):
+        raise ValueError("cannot clamp non-trainable parameters")
+    if any(key not in cols for key in regularize):
+        raise ValueError("cannot regularize non-trainable parameters")
+
+
 if pydantic.__version__.startswith("1."):
     _PotentialKey = openff.interchange.models.PotentialKey
     PotentialKeyList = list[_PotentialKey]
@@ -62,7 +85,7 @@ else:
         if not isinstance(value, list):
             return value
 
-        value = [
+        return [
             (
                 _PotentialKey(**v.dict())
                 if isinstance(v, openff.interchange.models.PotentialKey)
@@ -70,7 +93,6 @@ else:
             )
             for v in value
         ]
-        return value
 
     PotentialKeyList = typing.Annotated[
         list[_PotentialKey], pydantic.BeforeValidator(_convert_keys)
@@ -112,12 +134,7 @@ class AttributeConfig(pydantic.BaseModel):
             limits = values.get("limits")
             regularize = values.get("regularize")
 
-            if any(key not in cols for key in scales):
-                raise ValueError("cannot scale non-trainable parameters")
-            if any(key not in cols for key in limits):
-                raise ValueError("cannot clamp non-trainable parameters")
-            if any(key not in cols for key in regularize):
-                raise ValueError("cannot regularize non-trainable parameters")
+            _validate_trainable_keys(cols, scales, limits, regularize)
 
             return values
 
@@ -127,14 +144,9 @@ class AttributeConfig(pydantic.BaseModel):
         def _validate_keys(self):
             """Ensure that the keys in `scales` and `limits` match `cols`."""
 
-            if any(key not in self.cols for key in self.scales):
-                raise ValueError("cannot scale non-trainable parameters")
-
-            if any(key not in self.cols for key in self.limits):
-                raise ValueError("cannot clamp non-trainable parameters")
-
-            if any(key not in self.cols for key in self.regularize):
-                raise ValueError("cannot regularize non-trainable parameters")
+            _validate_trainable_keys(
+                self.cols, self.scales, self.limits, self.regularize
+            )
 
             return self
 
@@ -187,6 +199,25 @@ class ParameterConfig(AttributeConfig):
             return self
 
 
+class _PreparedBlock(typing.NamedTuple):
+    """Per-block output of ``_prepare`` and ``_prepare_vsites``.
+
+    All index tensors are zero-based relative to this block's own flat value
+    tensor. ``__init__`` is responsible for applying global offsets when
+    combining blocks.
+    """
+
+    values: torch.Tensor
+    shapes: list[torch.Size]
+    unfrozen_idxs: torch.Tensor
+    scales: torch.Tensor
+    clamp_lower: torch.Tensor
+    clamp_upper: torch.Tensor
+    # Always a subset of unfrozen_idxs.
+    regularized_idxs: torch.Tensor
+    regularization_weights: torch.Tensor
+
+
 class Trainable:
     """A convenient wrapper around a tensor force field that gives greater control
     over how parameters should be trained.
@@ -222,8 +253,6 @@ class Trainable:
         cols: list[str] | tuple[str, ...],
         config: AttributeConfig,
         unfrozen_rows: set[int],
-        n_rows: int,
-        idx_offset: int = 0,
     ) -> tuple[
         list[int],
         list[float],
@@ -232,8 +261,17 @@ class Trainable:
         list[int],
         list[float],
     ]:
-        """Prepare unfrozen indices and transform metadata for a value block."""
+        """Prepare unfrozen indices and transform metadata for a value block.
+
+        Returned indices are zero-based relative to this block's flat value
+        tensor. The caller is responsible for applying any global offset before
+        combining indices across blocks.
+
+        Only unfrozen entries are accumulated, so all returned lists are
+        parallel and require no further post-hoc indexing.
+        """
         row_width = values.shape[-1]
+        col_to_idx = {col: idx for idx, col in enumerate(cols)}
 
         unfrozen_idxs = []
         scales = []
@@ -242,20 +280,16 @@ class Trainable:
         regularized_idxs = []
         regularization_weights = []
 
-        for row_idx in range(n_rows):
-            for col_idx, col in enumerate(cols):
-                flat_idx = idx_offset + col_idx + row_idx * row_width
+        for row_idx in unfrozen_rows:
+            for col in config.cols:
+                flat_idx = col_to_idx[col] + row_idx * row_width
 
+                unfrozen_idxs.append(flat_idx)
                 scales.append(config.scales.get(col, 1.0))
 
                 lower, upper = config.limits.get(col, (None, None))
                 clamp_lower.append(-torch.inf if lower is None else lower)
                 clamp_upper.append(torch.inf if upper is None else upper)
-
-                if row_idx not in unfrozen_rows or col not in config.cols:
-                    continue
-
-                unfrozen_idxs.append(flat_idx)
 
                 if col in config.regularize:
                     regularized_idxs.append(flat_idx)
@@ -276,9 +310,13 @@ class Trainable:
         force_field: smee.TensorForceField,
         config: dict[str, AttributeConfig],
         attr: typing.Literal["parameters", "attributes"],
-    ):
+    ) -> _PreparedBlock:
         """Prepare the trainable parameters or attributes for the given force field and
-        configuration."""
+        configuration.
+
+        Returned indices are zero-based relative to the block's own flat value
+        tensor.
+        """
         potential_types = sorted(config)
         potentials = [
             force_field.potentials_by_type[potential_type]
@@ -289,10 +327,9 @@ class Trainable:
         shapes = []
 
         unfrozen_idxs = []
-        unfrozen_col_offset = 0
+        idx_offset = 0
 
         scales = []
-
         clamp_lower = []
         clamp_upper = []
 
@@ -335,45 +372,44 @@ class Trainable:
                 potential_cols,
                 potential_config,
                 unfrozen_rows,
-                n_rows,
-                unfrozen_col_offset,
             )
 
-            unfrozen_idxs.extend(potential_unfrozen_idxs)
+            unfrozen_idxs.extend(i + idx_offset for i in potential_unfrozen_idxs)
             scales.extend(potential_scales)
             clamp_lower.extend(potential_clamp_lower)
             clamp_upper.extend(potential_clamp_upper)
-            regularized_idxs.extend(potential_regularized_idxs)
+            regularized_idxs.extend(i + idx_offset for i in potential_regularized_idxs)
             regularization_weights.extend(potential_regularization_weights)
 
-            unfrozen_col_offset += len(potential_values_flat)
+            idx_offset += len(potential_values_flat)
 
-        values = (
+        flat_values = (
             smee.utils.tensor_like([], force_field.potentials[0].parameters)
             if len(values) == 0
             else torch.cat(values)
         )
 
-        return (
-            potential_types,
-            values,
-            shapes,
-            torch.tensor(unfrozen_idxs),
-            smee.utils.tensor_like(scales, values),
-            smee.utils.tensor_like(clamp_lower, values),
-            smee.utils.tensor_like(clamp_upper, values),
-            torch.tensor(regularized_idxs),
-            (
-                smee.utils.tensor_like(regularization_weights, values)
-                if regularization_weights
-                else smee.utils.tensor_like([], values)
+        return _PreparedBlock(
+            values=flat_values,
+            shapes=shapes,
+            unfrozen_idxs=torch.tensor(unfrozen_idxs),
+            scales=smee.utils.tensor_like(scales, flat_values),
+            clamp_lower=smee.utils.tensor_like(clamp_lower, flat_values),
+            clamp_upper=smee.utils.tensor_like(clamp_upper, flat_values),
+            regularized_idxs=torch.tensor(regularized_idxs),
+            regularization_weights=_tensor_like_or_empty(
+                regularization_weights, flat_values
             ),
         )
 
     def _prepare_vsites(
         self, force_field: smee.TensorForceField, config: ParameterConfig
-    ):
-        """Prepare the vsite parameters for optimisation."""
+    ) -> _PreparedBlock:
+        """Prepare the vsite parameters for optimisation.
+
+        Returned indices are zero-based relative to the block's own flat value
+        tensor.
+        """
         vsite_parameters = force_field.v_sites.parameters.detach().clone()
         n_rows = vsite_parameters.shape[0]
         vsite_parameters_flat = vsite_parameters.flatten()
@@ -395,20 +431,18 @@ class Trainable:
             vsite_cols,
             config,
             unfrozen_rows,
-            n_rows,
         )
 
-        return (
-            vsite_parameters_flat,
-            torch.tensor(unfrozen_idxs),
-            smee.utils.tensor_like(vsite_scales, vsite_parameters),
-            smee.utils.tensor_like(clamp_lower, vsite_parameters),
-            smee.utils.tensor_like(clamp_upper, vsite_parameters),
-            torch.tensor(regularized_idxs),
-            (
-                smee.utils.tensor_like(regularization_weights, vsite_parameters)
-                if regularization_weights
-                else smee.utils.tensor_like([], vsite_parameters)
+        return _PreparedBlock(
+            values=vsite_parameters_flat,
+            shapes=[vsite_parameters.shape],
+            unfrozen_idxs=torch.tensor(unfrozen_idxs),
+            scales=smee.utils.tensor_like(vsite_scales, vsite_parameters),
+            clamp_lower=smee.utils.tensor_like(clamp_lower, vsite_parameters),
+            clamp_upper=smee.utils.tensor_like(clamp_upper, vsite_parameters),
+            regularized_idxs=torch.tensor(regularized_idxs),
+            regularization_weights=_tensor_like_or_empty(
+                regularization_weights, vsite_parameters
             ),
         )
 
@@ -430,100 +464,62 @@ class Trainable:
         self._force_field = force_field
         self._fit_vsites = False
 
-        (
-            self._param_types,
-            param_values,
-            self._param_shapes,
-            param_unfrozen_idxs,
-            param_scales,
-            param_clamp_lower,
-            param_clamp_upper,
-            param_regularized_idxs,
-            param_regularization_weights,
-        ) = self._prepare(force_field, parameters, "parameters")
-        (
-            self._attr_types,
-            attr_values,
-            self._attr_shapes,
-            attr_unfrozen_idxs,
-            attr_scales,
-            attr_clamp_lower,
-            attr_clamp_upper,
-            attr_regularized_idxs,
-            attr_regularization_weights,
-        ) = self._prepare(force_field, attributes, "attributes")
+        param_block = self._prepare(force_field, parameters, "parameters")
+        attr_block = self._prepare(force_field, attributes, "attributes")
 
-        values = [param_values, attr_values]
-        unfrozen_idxs = [param_unfrozen_idxs, attr_unfrozen_idxs + len(param_scales)]
-        scales = [param_scales, attr_scales]
-        clamp_lower = [param_clamp_lower, attr_clamp_lower]
-        clamp_upper = [param_clamp_upper, attr_clamp_upper]
+        self._param_types = sorted(parameters)
+        self._param_shapes = param_block.shapes
+        self._attr_types = sorted(attributes)
+        self._attr_shapes = attr_block.shapes
+
+        blocks: list[_PreparedBlock] = [param_block, attr_block]
 
         if vsites is not None:
-            (
-                vsite_values,
-                vsite_unfrozen_idxs,
-                vsite_scales,
-                vsite_clamp_lower,
-                vsite_clamp_upper,
-                vsite_regularized_idxs,
-                vsite_regularization_weights,
-            ) = self._prepare_vsites(force_field, vsites)
+            blocks.append(self._prepare_vsites(force_field, vsites))
             self._fit_vsites = True
 
-            values.append(vsite_values)
-            unfrozen_idxs.append(
-                (vsite_unfrozen_idxs + len(param_scales) + len(attr_scales))
-            )
-            scales.append(vsite_scales)
-            clamp_lower.append(vsite_clamp_lower)
-            clamp_upper.append(vsite_clamp_upper)
+        # Each block's indices are zero-based within that block. Apply the
+        # running value-tensor offset at the point of combination so that the
+        # offset arithmetic is in one place and adding further blocks requires
+        # no changes beyond appending to `blocks`.
+        all_values = []
+        all_unfrozen_idxs = []
+        all_scales = []
+        all_clamp_lower = []
+        all_clamp_upper = []
+        all_regularized_idxs = []
+        all_regularization_weights = []
 
-        self._values = torch.cat(values)
+        offset = 0
+        for block in blocks:
+            all_values.append(block.values)
+            all_unfrozen_idxs.append(block.unfrozen_idxs + offset)
+            all_scales.append(block.scales)
+            all_clamp_lower.append(block.clamp_lower)
+            all_clamp_upper.append(block.clamp_upper)
+            all_regularized_idxs.append(block.regularized_idxs + offset)
+            all_regularization_weights.append(block.regularization_weights)
+            offset += len(block.values)
 
-        self._unfrozen_idxs = torch.cat(unfrozen_idxs).long()
+        self._values = torch.cat(all_values)
+        self._unfrozen_idxs = torch.cat(all_unfrozen_idxs).long()
+        self._scales = torch.cat(all_scales)
+        self._clamp_lower = torch.cat(all_clamp_lower)
+        self._clamp_upper = torch.cat(all_clamp_upper)
 
-        self._scales = torch.cat(scales)[self._unfrozen_idxs]
+        # Map global flat indices -> positions within the unfrozen vector.
+        # regularized_idxs are guaranteed to be a subset of unfrozen_idxs,
+        # so no missing-key guard is needed.
+        combined_regularized_idxs = torch.cat(all_regularized_idxs).long()
+        combined_regularization_weights = torch.cat(all_regularization_weights)
 
-        self._clamp_lower = torch.cat(clamp_lower)[self._unfrozen_idxs]
-        self._clamp_upper = torch.cat(clamp_upper)[self._unfrozen_idxs]
-
-        # Store regularization information
-        all_regularized_idxs = [
-            param_regularized_idxs,
-            attr_regularized_idxs + len(param_scales),
-        ]
-        all_regularization_weights = [
-            param_regularization_weights,
-            attr_regularization_weights,
-        ]
-
-        if self._fit_vsites:
-            all_regularized_idxs.append(
-                vsite_regularized_idxs + len(param_scales) + len(attr_scales)
-            )
-            all_regularization_weights.append(vsite_regularization_weights)
-
-        all_regularized_idxs = torch.cat(all_regularized_idxs).long()
-        all_regularization_weights = torch.cat(all_regularization_weights)
-
-        # Map global indices to unfrozen indices
         idx_mapping = {idx.item(): i for i, idx in enumerate(self._unfrozen_idxs)}
         self._regularized_idxs = torch.tensor(
-            [
-                idx_mapping[idx.item()]
-                for idx in all_regularized_idxs
-                if idx.item() in idx_mapping
-            ]
+            [idx_mapping[idx.item()] for idx in combined_regularized_idxs]
         ).long()
-        regularization_weights = [
-            all_regularization_weights[i]
-            for i, idx in enumerate(all_regularized_idxs)
-            if idx.item() in idx_mapping
-        ]
         self._regularization_weights = (
-            torch.stack(regularization_weights)
-            if regularization_weights
+            combined_regularization_weights
+            if len(combined_regularization_weights) > 0
             else torch.tensor([])
         )
 
