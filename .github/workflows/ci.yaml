@@ -20,7 +20,12 @@ jobs:
     - name: Run Tests
       run: |
         apt update && apt install -y git make
-        
+        # setuptools-scm calls git to determine the version; git refuses to
+        # run in directories owned by a different user (CVE-2022-24765), which
+        # happens when actions/checkout runs as a different UID than the
+        # container's root. Mark the workspace as safe to unblock the build.
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
         make env
         make lint
         make test
