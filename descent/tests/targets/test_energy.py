@@ -7,7 +7,13 @@ import smee.converters
 import torch
 
 import descent.utils.dataset
-from descent.targets.energy import Entry, create_dataset, extract_smiles, predict
+from descent.targets.energy import (
+    Entry,
+    create_dataset,
+    create_dataset_from_generator,
+    extract_smiles,
+    predict,
+)
 
 
 @pytest.fixture
@@ -46,6 +52,23 @@ def test_create_dataset(mock_meoh_entry):
     ]
 
     dataset = create_dataset([mock_meoh_entry])
+    assert len(dataset) == 1
+
+    entries = list(descent.utils.dataset.iter_dataset(dataset))
+    assert entries == expected_entries
+
+
+def test_create_dataset_from_generator(mock_meoh_entry):
+    expected_entries = [
+        {
+            "smiles": mock_meoh_entry["smiles"],
+            "coords": pytest.approx(mock_meoh_entry["coords"].flatten()),
+            "energy": pytest.approx(mock_meoh_entry["energy"]),
+            "forces": pytest.approx(mock_meoh_entry["forces"].flatten()),
+        },
+    ]
+
+    dataset = create_dataset_from_generator(lambda: iter([mock_meoh_entry]))
     assert len(dataset) == 1
 
     entries = list(descent.utils.dataset.iter_dataset(dataset))
