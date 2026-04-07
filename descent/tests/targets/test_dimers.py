@@ -10,6 +10,7 @@ from descent.targets.dimers import (
     Dimer,
     compute_dimer_energy,
     create_dataset,
+    create_dataset_from_generator,
     create_from_des,
     default_closure,
     extract_smiles,
@@ -41,6 +42,24 @@ def test_create_dataset(mock_dimer):
     ]
 
     dataset = create_dataset([mock_dimer])
+    assert len(dataset) == 1
+
+    entries = list(descent.utils.dataset.iter_dataset(dataset))
+    assert entries == expected_entries
+
+
+def test_create_dataset_from_generator(mock_dimer):
+    expected_entries = [
+        {
+            "smiles_a": mock_dimer["smiles_a"],
+            "smiles_b": mock_dimer["smiles_b"],
+            "coords": pytest.approx(mock_dimer["coords"].flatten()),
+            "energy": pytest.approx(mock_dimer["energy"]),
+            "source": mock_dimer["source"],
+        },
+    ]
+
+    dataset = create_dataset_from_generator(lambda: iter([mock_dimer]))
     assert len(dataset) == 1
 
     entries = list(descent.utils.dataset.iter_dataset(dataset))

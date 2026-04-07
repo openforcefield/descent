@@ -64,6 +64,37 @@ def create_dataset(entries: list[Entry]) -> datasets.Dataset:
     return dataset
 
 
+def create_dataset_from_generator(
+    gen_fn: typing.Callable[[], typing.Iterator[Entry]],
+) -> datasets.Dataset:
+    """Create a dataset from a generator function, avoiding loading all entries into
+    memory at once.
+
+    Args:
+        gen_fn: A callable that returns an iterator of entries. It will be called by
+            the HuggingFace datasets library and must be re-iterable (i.e. each call
+            to ``gen_fn()`` should produce a fresh iterator).
+
+    Returns:
+        The created dataset.
+    """
+
+    def _gen():
+        for entry in gen_fn():
+            yield {
+                "smiles": entry["smiles"],
+                "coords": torch.tensor(entry["coords"]).flatten().tolist(),
+                "energy": torch.tensor(entry["energy"]).flatten().tolist(),
+                "forces": torch.tensor(entry["forces"]).flatten().tolist(),
+            }
+
+    features = datasets.Features.from_arrow_schema(DATA_SCHEMA)
+    dataset = datasets.Dataset.from_generator(_gen, features=features)
+    dataset.set_format("torch")
+
+    return dataset
+
+
 def extract_smiles(dataset: datasets.Dataset) -> list[str]:
     """Return a list of unique SMILES strings in the dataset.
 
