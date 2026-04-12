@@ -10,7 +10,7 @@ dependencies:
 
   # Core packages
   - smee-base >=0.10.0
-  - msgpack
+  - msgpack-python
   - pydantic
   - pydantic-units
   - openff-interchange>=0.3.17
