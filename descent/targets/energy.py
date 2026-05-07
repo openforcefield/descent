@@ -11,8 +11,10 @@ import torch
 
 DATA_SCHEMA = pyarrow.schema(
     [
+        ("id", pyarrow.string()),
         ("smiles", pyarrow.string()),
         ("coords", pyarrow.list_(pyarrow.float64())),
+        ("box_vectors", pyarrow.list_(pyarrow.float64())),
         ("energy", pyarrow.list_(pyarrow.float64())),
         ("forces", pyarrow.list_(pyarrow.float64())),
     ]
@@ -21,6 +23,9 @@ DATA_SCHEMA = pyarrow.schema(
 
 class Entry(typing.TypedDict):
     """Represents a set of reference energies and forces."""
+
+    id: str | None
+    """An optional identifier for the entry (e.g. a run name). Defaults to ``None``."""
 
     smiles: str
     """The indexed SMILES description of the molecule the energies and forces were
@@ -33,6 +38,10 @@ class Entry(typing.TypedDict):
     """The reference energies [kcal/mol] with ``shape=(n_confs,)``."""
     forces: torch.Tensor
     """The reference forces [kcal/mol/Å] with ``shape=(n_confs, n_particles, 3)``."""
+
+    box_vectors: torch.Tensor | None
+    """The box vectors [Å] for periodic systems with ``shape=(n_confs, 3, 3)``, or
+    ``None`` for non-periodic systems."""
 
 
 def create_dataset(entries: list[Entry]) -> datasets.Dataset:
@@ -48,8 +57,12 @@ def create_dataset(entries: list[Entry]) -> datasets.Dataset:
     table = pyarrow.Table.from_pylist(
         [
             {
+                "id": entry.get("id"),
                 "smiles": entry["smiles"],
                 "coords": torch.tensor(entry["coords"]).flatten().tolist(),
+                "box_vectors": None
+                if entry.get("box_vectors") is None
+                else torch.tensor(entry["box_vectors"]).flatten().tolist(),
                 "energy": torch.tensor(entry["energy"]).flatten().tolist(),
                 "forces": torch.tensor(entry["forces"]).flatten().tolist(),
             }
@@ -149,9 +162,27 @@ def predict(
         coords = (
             (coords_flat.reshape(len(energy_ref), -1, 3)).detach().requires_grad_(True)
         )
+        box_vectors = entry.get("box_vectors", None)
+
         topology = topologies[smiles]
 
-        energy_pred = smee.compute_energy(topology, force_field, coords)
+        if box_vectors is not None:
+            # smee does not support batched periodic evaluations,
+            # so we loop over conformers.
+            box_vectors = smee.utils.tensor_like(box_vectors, coords_flat).reshape(
+                len(energy_ref), 3, 3
+            )
+            energy_pred = torch.cat(
+                [
+                    smee.compute_energy(
+                        topology, force_field, coords[i], box_vectors[i]
+                    )
+                    for i in range(len(energy_ref))
+                ]
+            )
+        else:
+            energy_pred = smee.compute_energy(topology, force_field, coords, None)
+
         forces_pred = -torch.autograd.grad(
             energy_pred.sum(),
             coords,
