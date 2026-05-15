@@ -95,8 +95,12 @@ def create_dataset_from_generator(
     def _gen():
         for entry in gen_fn():
             yield {
+                "id": entry.get("id"),
                 "smiles": entry["smiles"],
                 "coords": torch.tensor(entry["coords"]).flatten().tolist(),
+                "box_vectors": None
+                if entry.get("box_vectors") is None
+                else torch.tensor(entry["box_vectors"]).flatten().tolist(),
                 "energy": torch.tensor(entry["energy"]).flatten().tolist(),
                 "forces": torch.tensor(entry["forces"]).flatten().tolist(),
             }

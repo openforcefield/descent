@@ -69,17 +69,28 @@ def test_create_dataset(mock_meoh_entry, box_vectors):
     assert entries == expected_entries
 
 
-def test_create_dataset_from_generator(mock_meoh_entry):
+@pytest.mark.parametrize(
+    "box_vectors",
+    [None, torch.eye(3).repeat(2, 1, 1) * 20.0],
+    ids=["non-periodic", "periodic"],
+)
+def test_create_dataset_from_generator(mock_meoh_entry, box_vectors):
+    entry = {**mock_meoh_entry, "box_vectors": box_vectors}
+
     expected_entries = [
         {
-            "smiles": mock_meoh_entry["smiles"],
-            "coords": pytest.approx(mock_meoh_entry["coords"].flatten()),
-            "energy": pytest.approx(mock_meoh_entry["energy"]),
-            "forces": pytest.approx(mock_meoh_entry["forces"].flatten()),
+            "id": None,
+            "smiles": entry["smiles"],
+            "coords": pytest.approx(entry["coords"].flatten()),
+            "energy": pytest.approx(entry["energy"]),
+            "forces": pytest.approx(entry["forces"].flatten()),
+            "box_vectors": None
+            if box_vectors is None
+            else pytest.approx(box_vectors.flatten()),
         },
     ]
 
-    dataset = create_dataset_from_generator(lambda: iter([mock_meoh_entry]))
+    dataset = create_dataset_from_generator(lambda: iter([entry]))
     assert len(dataset) == 1
 
     entries = list(descent.utils.dataset.iter_dataset(dataset))
