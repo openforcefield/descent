@@ -16,7 +16,7 @@ dependencies:
   - pyarrow
   - datasets
 
-  - pydantic
+  - pydantic =2
 
   ### Levenberg Marquardt
   - scipy

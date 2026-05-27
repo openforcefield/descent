@@ -26,53 +26,48 @@ def _unflatten_tensors(
     return tensors
 
 
-if pydantic.__version__.startswith("1."):
-    _PotentialKey = openff.interchange.models.PotentialKey
-    PotentialKeyList = list[_PotentialKey]
-else:
+class _PotentialKey(pydantic.BaseModel):
+    """
 
-    class _PotentialKey(pydantic.BaseModel):
-        """
+    TODO: Needed until interchange upgrades to pydantic >=2
+    """
 
-        TODO: Needed until interchange upgrades to pydantic >=2
-        """
+    id: str
+    mult: int | None = None
+    associated_handler: str | None = None
+    bond_order: float | None = None
 
-        id: str
-        mult: int | None = None
-        associated_handler: str | None = None
-        bond_order: float | None = None
+    def __hash__(self) -> int:
+        return hash((self.id, self.mult, self.associated_handler, self.bond_order))
 
-        def __hash__(self) -> int:
-            return hash((self.id, self.mult, self.associated_handler, self.bond_order))
+    def __eq__(self, other: object) -> bool:
+        import openff.interchange.models
 
-        def __eq__(self, other: object) -> bool:
-            import openff.interchange.models
-
-            return (
-                isinstance(
-                    other, (_PotentialKey, openff.interchange.models.PotentialKey)
-                )
-                and self.id == other.id
-                and self.mult == other.mult
-                and self.associated_handler == other.associated_handler
-                and self.bond_order == other.bond_order
+        return (
+            isinstance(
+                other, (_PotentialKey, openff.interchange.models.PotentialKey)
             )
+            and self.id == other.id
+            and self.mult == other.mult
+            and self.associated_handler == other.associated_handler
+            and self.bond_order == other.bond_order
+        )
 
-    def _convert_keys(value: typing.Any) -> typing.Any:
-        if not isinstance(value, list):
-            return value
-
-        value = [
-            _PotentialKey(**v.dict())
-            if isinstance(v, openff.interchange.models.PotentialKey)
-            else v
-            for v in value
-        ]
+def _convert_keys(value: typing.Any) -> typing.Any:
+    if not isinstance(value, list):
         return value
 
-    PotentialKeyList = typing.Annotated[
-        list[_PotentialKey], pydantic.BeforeValidator(_convert_keys)
+    value = [
+        _PotentialKey(**v.dict())
+        if isinstance(v, openff.interchange.models.PotentialKey)
+        else v
+        for v in value
     ]
+    return value
+
+PotentialKeyList = typing.Annotated[
+    list[_PotentialKey], pydantic.BeforeValidator(_convert_keys)
+]
 
 
 class AttributeConfig(pydantic.BaseModel):
