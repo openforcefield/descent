@@ -29,11 +29,14 @@ def _unflatten_tensors(
 def _convert_keys(value: typing.Any) -> typing.Any:
     if not isinstance(value, list):
         return value
+
+
 def _tensor_like_or_empty(values: list[float], like: torch.Tensor) -> torch.Tensor:
     """Create a tensor like `like`, returning an empty one when no values exist."""
     return (
         smee.utils.tensor_like(values, like)
-        if values else smee.utils.tensor_like([], like)
+        if values
+        else smee.utils.tensor_like([], like)
     )
 
 
@@ -64,8 +67,10 @@ def _convert_keys(value: typing.Any) -> typing.Any:
     ]
     return value
 
+
 PotentialKeyList = typing.Annotated[
-    list[openff.interchange.models.PotentialKey], pydantic.BeforeValidator(_convert_keys)
+    list[openff.interchange.models.PotentialKey],
+    pydantic.BeforeValidator(_convert_keys),
 ]
 
 
@@ -98,9 +103,7 @@ class AttributeConfig(pydantic.BaseModel):
     def _validate_keys(self):
         """Ensure that the keys in `scales` and `limits` match `cols`."""
 
-        _validate_trainable_keys(
-            self.cols, self.scales, self.limits, self.regularize
-        )
+        _validate_trainable_keys(self.cols, self.scales, self.limits, self.regularize)
 
         return self
 
@@ -353,7 +356,10 @@ class Trainable:
         # avoids hard-coding them.
         vsite_cols = list(force_field.v_sites.default_units().keys())
 
-        all_keys = [openff.interchange.models.PotentialKey(**key.dict()) for key in force_field.v_sites.keys]
+        all_keys = [
+            openff.interchange.models.PotentialKey(**key.dict())
+            for key in force_field.v_sites.keys
+        ]
         unfrozen_rows = self._prepare_rows(config, n_rows, all_keys)
         (
             unfrozen_idxs,
