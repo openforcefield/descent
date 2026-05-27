@@ -80,6 +80,38 @@ def create_dataset(dimers: list[Dimer]) -> datasets.Dataset:
     return dataset
 
 
+def create_dataset_from_generator(
+    gen_fn: typing.Callable[[], typing.Iterator[Dimer]],
+) -> datasets.Dataset:
+    """Create a dataset from a generator function, avoiding loading all dimers into
+    memory at once.
+
+    Args:
+        gen_fn: A callable that returns an iterator of dimers. It will be called by
+            the HuggingFace datasets library and must be re-iterable (i.e. each call
+            to ``gen_fn()`` should produce a fresh iterator).
+
+    Returns:
+        The created dataset.
+    """
+
+    def _gen():
+        for dimer in gen_fn():
+            yield {
+                "smiles_a": dimer["smiles_a"],
+                "smiles_b": dimer["smiles_b"],
+                "coords": torch.tensor(dimer["coords"]).flatten().tolist(),
+                "energy": torch.tensor(dimer["energy"]).flatten().tolist(),
+                "source": dimer["source"],
+            }
+
+    features = datasets.Features.from_arrow_schema(DATA_SCHEMA)
+    dataset = datasets.Dataset.from_generator(_gen, features=features)
+    dataset.set_format("torch")
+
+    return dataset
+
+
 def create_from_des(
     data_dir: pathlib.Path,
     energy_fn: EnergyFn,
@@ -409,7 +441,7 @@ def report(
         col: rmse_format for col in data_stats.columns if col.startswith("RMSE")
     }
     formatters_full = {
-        **{col: "html" for col in ["Dimer", "Energy [kcal/mol]"]},
+        **dict.fromkeys(["Dimer", "Energy [kcal/mol]"], "html"),
         **{col: rmse_format for col in data_full.columns if col.startswith("RMSE")},
     }
 

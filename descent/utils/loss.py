@@ -73,7 +73,7 @@ def combine_closures(
         A combined closure function.
     """
 
-    weights = weights if weights is not None else {name: 1.0 for name in closures}
+    weights = weights if weights is not None else dict.fromkeys(closures, 1.0)
 
     if len(closures) == 0:
         raise NotImplementedError("At least one closure function is required.")
