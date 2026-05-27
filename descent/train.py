@@ -26,39 +26,12 @@ def _unflatten_tensors(
     return tensors
 
 
-class _PotentialKey(pydantic.BaseModel):
-    """
-
-    TODO: Needed until interchange upgrades to pydantic >=2
-    """
-
-    id: str
-    mult: int | None = None
-    associated_handler: str | None = None
-    bond_order: float | None = None
-
-    def __hash__(self) -> int:
-        return hash((self.id, self.mult, self.associated_handler, self.bond_order))
-
-    def __eq__(self, other: object) -> bool:
-        import openff.interchange.models
-
-        return (
-            isinstance(
-                other, (_PotentialKey, openff.interchange.models.PotentialKey)
-            )
-            and self.id == other.id
-            and self.mult == other.mult
-            and self.associated_handler == other.associated_handler
-            and self.bond_order == other.bond_order
-        )
-
 def _convert_keys(value: typing.Any) -> typing.Any:
     if not isinstance(value, list):
         return value
 
     value = [
-        _PotentialKey(**v.dict())
+        openff.interchange.models.PotentialKey(**v.dict())
         if isinstance(v, openff.interchange.models.PotentialKey)
         else v
         for v in value
@@ -66,7 +39,7 @@ def _convert_keys(value: typing.Any) -> typing.Any:
     return value
 
 PotentialKeyList = typing.Annotated[
-    list[_PotentialKey], pydantic.BeforeValidator(_convert_keys)
+    list[openff.interchange.models.PotentialKey], pydantic.BeforeValidator(_convert_keys)
 ]
 
 
@@ -89,35 +62,17 @@ class AttributeConfig(pydantic.BaseModel):
         "none indicates no constraint.",
     )
 
-    if pydantic.__version__.startswith("1."):
+    @pydantic.model_validator(mode="after")
+    def _validate_keys(self):
+        """Ensure that the keys in `scales` and `limits` match `cols`."""
 
-        @pydantic.root_validator
-        def _validate_keys(cls, values):
-            cols = values.get("cols")
+        if any(key not in self.cols for key in self.scales):
+            raise ValueError("cannot scale non-trainable parameters")
 
-            scales = values.get("scales")
-            limits = values.get("limits")
+        if any(key not in self.cols for key in self.limits):
+            raise ValueError("cannot clamp non-trainable parameters")
 
-            if any(key not in cols for key in scales):
-                raise ValueError("cannot scale non-trainable parameters")
-            if any(key not in cols for key in limits):
-                raise ValueError("cannot clamp non-trainable parameters")
-
-            return values
-
-    else:
-
-        @pydantic.model_validator(mode="after")
-        def _validate_keys(self):
-            """Ensure that the keys in `scales` and `limits` match `cols`."""
-
-            if any(key not in self.cols for key in self.scales):
-                raise ValueError("cannot scale non-trainable parameters")
-
-            if any(key not in self.cols for key in self.limits):
-                raise ValueError("cannot clamp non-trainable parameters")
-
-            return self
+        return self
 
 
 class ParameterConfig(AttributeConfig):
@@ -136,36 +91,18 @@ class ParameterConfig(AttributeConfig):
         "If ``None``, no parameters will be excluded.",
     )
 
-    if pydantic.__version__.startswith("1."):
+    @pydantic.model_validator(mode="after")
+    def _validate_include_exclude(self):
+        """Ensure that the keys in `include` and `exclude` are disjoint."""
 
-        @pydantic.root_validator
-        def _validate_include_exclude(cls, values):
-            include = values.get("include")
-            exclude = values.get("exclude")
+        if self.include is not None and self.exclude is not None:
+            include = {*self.include}
+            exclude = {*self.exclude}
 
-            if include is not None and exclude is not None:
-                include = {*include}
-                exclude = {*exclude}
+            if include & exclude:
+                raise ValueError("cannot include and exclude the same parameter")
 
-                if include & exclude:
-                    raise ValueError("cannot include and exclude the same parameter")
-
-            return values
-
-    else:
-
-        @pydantic.model_validator(mode="after")
-        def _validate_include_exclude(self):
-            """Ensure that the keys in `include` and `exclude` are disjoint."""
-
-            if self.include is not None and self.exclude is not None:
-                include = {*self.include}
-                exclude = {*self.exclude}
-
-                if include & exclude:
-                    raise ValueError("cannot include and exclude the same parameter")
-
-            return self
+        return self
 
 
 class Trainable:
