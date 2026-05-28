@@ -38,6 +38,7 @@ ruff = "*"
 nbqa = "*"
 
 [feature.test.dependencies]
+ambertools = "*"
 pytest = "*"
 pytest-cov = "*"
 pytest-mock = "*"
