@@ -1,42 +1,41 @@
 [build-system]
-requires = ["setuptools>=61.0", "setuptools_scm>=8", "wheel", "versioneer"]
 build-backend = "setuptools.build_meta"
+requires = [ "setuptools>=80", "setuptools-scm>=8", "wheel" ]
 
 [project]
 name = "descent"
 description = "Differentiably compute energies of molecules using SMIRNOFF force fields."
-authors = [ {name = "Simon Boothroyd"} ]
-license = { text = "MIT" }
-dynamic = ["version"]
 readme = "README.md"
-requires-python = ">=3.10"
-classifiers = ["Programming Language :: Python :: 3"]
+license = { text = "MIT" }
+authors = [ { name = "Simon Boothroyd" } ]
+requires-python = ">=3.12"
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+dynamic = [ "version" ]
 
-[tool.setuptools.packages.find]
-include = ["descent*"]
+[tool.setuptools]
+packages.find.include = [ "descent*" ]
 
 [tool.setuptools_scm]
 
 [tool.ruff]
-extend-include = ["*.ipynb"]
+extend-include = [ "*.ipynb" ]
+lint.select = [ "B", "B9", "C", "E", "F", "W" ]
+lint.ignore = [ "C901" ]
+lint.pydocstyle.convention = "google"
+lint.ignore-init-module-imports = true
 
-[tool.ruff.lint]
-ignore = ["C901"]
-select = ["B","C","E","F","W","B9"]
-ignore-init-module-imports = true
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
-
-[tool.coverage.run]
-omit = ["**/tests/*", "**/_version.py"]
-
-[tool.coverage.report]
-exclude_lines = [
-    "@overload",
-    "pragma: no cover",
-    "raise NotImplementedError",
-    "if __name__ = .__main__.:",
-    "if TYPE_CHECKING:",
-    "if typing.TYPE_CHECKING:",
+[tool.coverage]
+run.omit = [ "**/tests/*" ]
+report.exclude_lines = [
+  "@overload",
+  "if __name__ = .__main__.:",
+  "if TYPE_CHECKING:",
+  "if typing.TYPE_CHECKING:",
+  "pragma: no cover",
+  "raise NotImplementedError",
 ]

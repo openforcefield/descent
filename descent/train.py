@@ -30,7 +30,8 @@ def _tensor_like_or_empty(values: list[float], like: torch.Tensor) -> torch.Tens
     """Create a tensor like `like`, returning an empty one when no values exist."""
     return (
         smee.utils.tensor_like(values, like)
-        if values else smee.utils.tensor_like([], like)
+        if values
+        else smee.utils.tensor_like([], like)
     )
 
 
