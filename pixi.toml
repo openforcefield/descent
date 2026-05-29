@@ -57,10 +57,14 @@ mike = "*"
 [feature.py312.dependencies]
 python = "3.12.*"
 
+[feature.py313.dependencies]
+python = "3.13.*"
+
 [feature.typing.dependencies]
 mypy = ">=1.20"
 
 [environments]
 py312 = [ "py312", "test", "typing" ]
+py313 = [ "py313", "test", "typing" ]
 dev = [ "py312", "test", "typing", "dev" ]
 docs = [ "py312", "docs" ]
