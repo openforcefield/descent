@@ -274,8 +274,7 @@ def _convert_entry_to_system(
     Returns:
         The system and its associated key.
     """
-    smiles_a = entry["smiles_a"]
-    smiles_b = entry["smiles_b"]
+    smiles_a: str = entry["smiles_a"]
 
     fraction_a = 0.0 if entry["x_a"] is None else entry["x_a"]
     fraction_b = 0.0 if entry["x_b"] is None else entry["x_b"]
@@ -287,10 +286,11 @@ def _convert_entry_to_system(
 
     smiles = [smiles_a]
 
-    system_topologies = [topologies[smiles_a]]
+    system_topologies: list[smee.TensorTopology] = [topologies[smiles_a]]
     n_copies = [n_copies_a]
 
     if n_copies_b > 0:
+        smiles_b: str = entry["smiles_b"]
         smiles.append(smiles_b)
 
         system_topologies.append(topologies[smiles_b])
@@ -490,7 +490,7 @@ def _plan_simulations(
                 key = SimulationKey(
                     (smiles,), (max_mols,), entry["temperature"], entry["pressure"]
                 )
-                system = smee.TensorSystem([topologies[smiles]], [max_mols], True)
+                system = smee.TensorSystem([topologies[smiles]], [max_mols], True)  # type: ignore[index]
 
                 systems_per_phase["bulk"][key] = system
                 required_sims[f"bulk_{i}"] = key
@@ -666,7 +666,7 @@ def _predict(
     keys: dict[str, SimulationKey],
     observables: dict[Phase, dict[SimulationKey, _Observables]],
     systems: dict[Phase, dict[SimulationKey, smee.TensorSystem]],
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor | None]:
     if entry["type"] == "density":
         value = _predict_density(entry, observables["bulk"][keys["bulk"]])
     elif entry["type"] == "hvap":
@@ -720,7 +720,8 @@ def predict(
             a config for each phase if not provided the default will be used.
     """
 
-    entries: list[DataEntry] = [*descent.utils.dataset.iter_dataset(dataset)]
+    # unclear if this should be list[DataEntry] or list[dict]
+    entries: list[DataEntry] = [*descent.utils.dataset.iter_dataset(dataset)]  # type: ignore[list-item]
 
     required_simulations, entry_to_simulation = _plan_simulations(
         entries, topologies, simulation_config
@@ -827,7 +828,7 @@ def default_closure(
     ):
         force_field = trainable.to_force_field(x)
 
-        y_ref, _, y_pred, _ = descent.targets.thermo.predict(
+        y_ref, _, y_pred, _ = descent.targets.thermo.predict(  # type: ignore[attr-defined]
             dataset,
             force_field,
             topologies,

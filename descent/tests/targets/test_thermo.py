@@ -39,7 +39,7 @@ def mock_density_pure() -> DataEntry:
         "value": 0.785,
         "std": 0.001,
         "units": "g/mL",
-        "source": None,
+        "source": "",
     }
 
 
@@ -56,7 +56,7 @@ def mock_density_binary() -> DataEntry:
         "value": 0.9,
         "std": 0.002,
         "units": "g/mL",
-        "source": None,
+        "source": "",
     }
 
 
@@ -73,7 +73,7 @@ def mock_hvap() -> DataEntry:
         "value": 1.234,
         "std": 0.004,
         "units": "kcal/mol",
-        "source": None,
+        "source": "",
     }
 
 
@@ -90,7 +90,7 @@ def mock_hmix() -> DataEntry:
         "value": 0.4321,
         "std": 0.0025,
         "units": "kcal/mol",
-        "source": None,
+        "source": "",
     }
 
 

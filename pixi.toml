@@ -6,7 +6,7 @@ platforms = [ "linux-64", "osx-arm64" ]
 
 [tasks]
 run_tests = "python -m pytest -v --cov=descent --cov-append --cov-report=xml --color=yes descent/tests/"
-run_typechecker = "mypy descent/"
+run_mypy = "python -m mypy descent/"
 make_docs = "mkdocs build"
 
 [dependencies]
@@ -31,6 +31,9 @@ nbconvert = "*"
 tensorboard = "*"
 tensorboardx = "*"
 uncertainties = "*"
+
+[pypi-dependencies]
+descent = { path = ".", editable = true }
 
 [feature.dev.dependencies]
 pre-commit = "*"
@@ -60,8 +63,11 @@ python = "3.12.*"
 [feature.py313.dependencies]
 python = "3.13.*"
 
-[feature.typing.dependencies]
-mypy = ">=1.20"
+[feature.typing.pypi-dependencies]
+mypy = "*"
+scipy-stubs = "*"
+types-tqdm = "*"
+pandas-stubs = "*"
 
 [environments]
 py312 = [ "py312", "test", "typing" ]

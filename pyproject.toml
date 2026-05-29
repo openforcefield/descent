@@ -27,7 +27,23 @@ extend-include = [ "*.ipynb" ]
 lint.select = [ "B", "B9", "C", "E", "F", "W" ]
 lint.ignore = [ "C901" ]
 lint.pydocstyle.convention = "google"
-lint.ignore-init-module-imports = true
+
+[tool.mypy]
+python_version = "3.12"
+exclude = "descent/tests/"
+plugins = "pydantic.mypy"
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_incomplete_stub = true
+show_error_codes = true
+allow_redefinition = true
+overrides = [ { module = [
+  "rdkit",
+  "datasets",
+  "openff.toolkit.*",
+] } ]
+ignore_missing_imports = true
+disable_error_code = [ "arg-type", "assignment", "union-attr" ]  # TODO: Try to remove some of these
 
 [tool.coverage]
 run.omit = [ "**/tests/*" ]
