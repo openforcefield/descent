@@ -10,29 +10,34 @@ on:
 
 jobs:
   test:
+    name: Test on ${{ matrix.os }}, ${{ matrix.environment }}
 
-    runs-on: ubuntu-latest
-    container: condaforge/mambaforge:latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        environment:
+          - py312
+          - py313
 
     steps:
-    - uses: actions/checkout@v3.3.0
+    - uses: actions/checkout@v6
 
-    - name: Run Tests
-      run: |
-        apt update && apt install -y git make
-        # setuptools-scm calls git to determine the version; git refuses to
-        # run in directories owned by a different user (CVE-2022-24765), which
-        # happens when actions/checkout runs as a different UID than the
-        # container's root. Mark the workspace as safe to unblock the build.
-        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+    - name: Set up virtual environment
+      uses: prefix-dev/setup-pixi@v0.9.5
+      with:
+        pixi-version: v0.69.0
+        environments: ${{ matrix.environment }}
+        frozen: true
 
-        make env
-        make lint
-        make test
-        make docs
-        
+    - name: Run tests
+      if: ${{ !contains(matrix.environment, 'examples') }}
+      run: pixi run -e ${{ matrix.environment }} run_tests
+
     - name: CodeCov
-      uses: codecov/codecov-action@v4.1.1
+      uses: codecov/codecov-action@v6
       with:
         file: ./coverage.xml
         flags: unittests

@@ -1,10 +1,11 @@
 import pathlib
 
 import pytest
+from typing import Generator
 
 
 @pytest.fixture
-def tmp_cwd(tmp_path, monkeypatch) -> pathlib.Path:
+def tmp_cwd(tmp_path, monkeypatch) -> Generator[pathlib.Path, None, None]:
     monkeypatch.chdir(tmp_path)
     yield tmp_path
 

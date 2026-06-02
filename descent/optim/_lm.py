@@ -260,7 +260,7 @@ def _step(
             hessian.shape[0], device=hessian.device, dtype=hessian.dtype
         )
 
-    damping_factor = torch.tensor(1.0)
+    damping_factor: torch.Tensor = torch.tensor(1.0)
 
     dx, improvement = _solver(damping_factor, gradient, hessian)
     dx_norm = torch.linalg.norm(dx)
@@ -284,6 +284,9 @@ def _step(
 
         dx, improvement = _solver(damping_factor, gradient, hessian)
 
+    # Incompatible return value type
+    #   got "tuple[Tensor, Tensor, bool, Tensor | float]"
+    #   expected "tuple[Tensor, Tensor, bool, Tensor]")
     return dx, improvement, adjust_damping, damping_factor
 
 
@@ -322,7 +325,7 @@ def _hessian_diagonal_search(
         loss_micro, _, _ = closure_fn(x_next, False, False)
         return loss_micro - loss
 
-    damping_factor, expected_improvement, _, _ = optimize.brent(
+    damping_factor, expected_improvement, _, _ = optimize.brent(  # type: ignore[call-overload]
         search_fn,
         (),
         (damping_factor, damping_factor * 4),
@@ -349,7 +352,7 @@ def _hessian_diagonal_search(
 
         _LOGGER.info(f"restarting search with step size {dx_norm}")
 
-        damping_factor, expected_improvement, _, _ = optimize.brent(
+        damping_factor, expected_improvement, _, _ = optimize.brent(  # type: ignore[call-overload]
             search_fn,
             (),
             (damping_factor, damping_factor * 4),

@@ -30,7 +30,8 @@ def _tensor_like_or_empty(values: list[float], like: torch.Tensor) -> torch.Tens
     """Create a tensor like `like`, returning an empty one when no values exist."""
     return (
         smee.utils.tensor_like(values, like)
-        if values else smee.utils.tensor_like([], like)
+        if values
+        else smee.utils.tensor_like([], like)
     )
 
 
@@ -54,7 +55,7 @@ if pydantic.__version__.startswith("1."):
     PotentialKeyList = list[_PotentialKey]
 else:
 
-    class _PotentialKey(pydantic.BaseModel):
+    class _PotentialKey(pydantic.BaseModel):  # type: ignore[no-redef]
         """
 
         TODO: Needed until interchange upgrades to pydantic >=2
@@ -94,7 +95,7 @@ else:
             for v in value
         ]
 
-    PotentialKeyList = typing.Annotated[
+    PotentialKeyList = typing.Annotated[  # type: ignore[misc]
         list[_PotentialKey], pydantic.BeforeValidator(_convert_keys)
     ]
 
@@ -126,7 +127,7 @@ class AttributeConfig(pydantic.BaseModel):
 
     if pydantic.__version__.startswith("1."):
 
-        @pydantic.root_validator
+        @pydantic.root_validator  # type: ignore[call-overload]
         def _validate_keys(cls, values):
             cols = values.get("cols")
 
@@ -169,7 +170,7 @@ class ParameterConfig(AttributeConfig):
 
     if pydantic.__version__.startswith("1."):
 
-        @pydantic.root_validator
+        @pydantic.root_validator  # type: ignore[call-overload]
         def _validate_include_exclude(cls, values):
             include = values.get("include")
             exclude = values.get("exclude")
@@ -326,14 +327,14 @@ class Trainable:
         values = []
         shapes = []
 
-        unfrozen_idxs = []
+        unfrozen_idxs: list[int] = []
         idx_offset = 0
 
         scales = []
         clamp_lower = []
         clamp_upper = []
 
-        regularized_idxs = []
+        regularized_idxs: list[int] = []
         regularization_weights = []
 
         for potential_type, potential in zip(potential_types, potentials, strict=True):

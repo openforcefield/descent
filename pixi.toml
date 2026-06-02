@@ -1,0 +1,76 @@
+[workspace]
+authors = ["Open Force Field Initiative <info@openforcefield.org>"]
+channels = ["conda-forge"]
+name = "descent"
+platforms = [ "linux-64", "osx-arm64" ]
+
+[tasks]
+run_tests = "python -m pytest -v --cov=descent --cov-append --cov-report=xml --color=yes descent/tests/"
+run_mypy = "python -m mypy descent/"
+make_docs = "mkdocs build"
+
+[dependencies]
+python = ">=3.12"
+setuptools-scm = ">=8"
+pip = "*"
+smee-base = ">=0.10.0"
+msgpack-python = "*"
+pydantic = "*"
+pydantic-units = "*"
+openff-interchange = "0.5.*"
+pytorch = "*"
+pyarrow = "*"
+datasets = "*"
+scipy = "*"
+rdkit = "*"
+matplotlib-base = "*"
+panel = "*"
+openmm = "*"
+jupyter = "*"
+nbconvert = "*"
+tensorboard = "*"
+tensorboardx = "*"
+uncertainties = "*"
+
+[pypi-dependencies]
+descent = { path = ".", editable = true }
+
+[feature.dev.dependencies]
+pre-commit = "*"
+ruff = "*"
+nbqa = "*"
+
+[feature.test.dependencies]
+ambertools = "*"
+pytest = "*"
+pytest-cov = "*"
+pytest-mock = "*"
+codecov = "*"
+
+[feature.docs.dependencies]
+mkdocs = "*"
+mkdocs-material = "*"
+mkdocs-gen-files = "*"
+mkdocs-literate-nav = "*"
+mkdocstrings = "*"
+mkdocstrings-python = ">=1.10.8"
+griffe-pydantic = "*"
+mike = "*"
+
+[feature.py312.dependencies]
+python = "3.12.*"
+
+[feature.py313.dependencies]
+python = "3.13.*"
+
+[feature.typing.pypi-dependencies]
+mypy = "*"
+scipy-stubs = "*"
+types-tqdm = "*"
+pandas-stubs = "*"
+
+[environments]
+py312 = [ "py312", "test", "typing" ]
+py313 = [ "py313", "test", "typing" ]
+dev = [ "py312", "test", "typing", "dev" ]
+docs = [ "py312", "docs" ]

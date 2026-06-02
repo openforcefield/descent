@@ -5,6 +5,7 @@ import typing
 import datasets
 
 
+# TODO: This is probably meant to return only Iterator[DataEntry] ...
 def iter_dataset(dataset: datasets.Dataset) -> typing.Iterator[dict[str, typing.Any]]:
     """Iterate over a Hugging Face Dataset, yielding each 'row' as a dictionary.
 
