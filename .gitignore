@@ -113,3 +113,6 @@ ENV/
 
 # Local development
 scratch
+# pixi environments
+.pixi/*
+!.pixi/config.toml

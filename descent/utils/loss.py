@@ -85,8 +85,8 @@ def combine_closures(
         x: torch.Tensor, compute_gradient: bool, compute_hessian: bool
     ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
         loss = []
-        grad = None if not compute_gradient else []
-        hess = None if not compute_hessian else []
+        grad: list[torch.Tensor] | None = None if not compute_gradient else []
+        hess: list[torch.Tensor] | None = None if not compute_hessian else []
 
         verbose_rows = []
 
@@ -95,12 +95,16 @@ def combine_closures(
                 x, compute_gradient, compute_hessian
             )
 
-            loss.append(weights[name] * local_loss)
+            local_loss_: torch.Tensor = local_loss
+            local_grad_: torch.Tensor = local_grad
+            local_hess_: torch.Tensor = local_hess
+
+            loss.append(weights[name] * local_loss_)
 
             if compute_gradient:
-                grad.append(weights[name] * local_grad)
+                grad.append(weights[name] * local_grad_)
             if compute_hessian:
-                hess.append(weights[name] * local_hess)
+                hess.append(weights[name] * local_hess_)
 
             if verbose:
                 verbose_rows.append(
@@ -110,9 +114,9 @@ def combine_closures(
         loss = sum(loss[1:], loss[0])
 
         if compute_gradient:
-            grad = sum(grad[1:], grad[0]).detach()
+            grad = sum(grad[1:], grad[0]).detach()  # type: ignore[index]
         if compute_hessian:
-            hess = sum(hess[1:], hess[0]).detach()
+            hess = sum(hess[1:], hess[0]).detach()  # type: ignore[index]
 
         if verbose:
             import pandas
@@ -122,7 +126,7 @@ def combine_closures(
                 + pandas.DataFrame(verbose_rows).to_string(index=False)
             )
 
-        return loss.detach(), grad, hess
+        return loss.detach(), grad, hess  # type: ignore[return-value]
 
     return combined_closure_fn
 

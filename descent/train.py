@@ -59,13 +59,12 @@ def _convert_keys(value: typing.Any) -> typing.Any:
     if not isinstance(value, list):
         return value
 
-    value = [
+    return [
         openff.interchange.models.PotentialKey(**v.dict())
         if isinstance(v, openff.interchange.models.PotentialKey)
         else v
         for v in value
     ]
-    return value
 
 
 PotentialKeyList = typing.Annotated[
@@ -131,7 +130,6 @@ class ParameterConfig(AttributeConfig):
         if self.include is not None and self.exclude is not None:
             include = {*self.include}
             exclude = {*self.exclude}
-
             if include & exclude:
                 raise ValueError("cannot include and exclude the same parameter")
 
@@ -265,14 +263,14 @@ class Trainable:
         values = []
         shapes = []
 
-        unfrozen_idxs = []
+        unfrozen_idxs: list[int] = []
         idx_offset = 0
 
         scales = []
         clamp_lower = []
         clamp_upper = []
 
-        regularized_idxs = []
+        regularized_idxs: list[int] = []
         regularization_weights = []
 
         for potential_type, potential in zip(potential_types, potentials, strict=True):
