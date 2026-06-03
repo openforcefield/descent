@@ -11,7 +11,7 @@ import smee.utils
 import torch
 
 
-from descent.train import AttributeConfig, ParameterConfig, Trainable, _PotentialKey
+from descent.train import AttributeConfig, ParameterConfig, Trainable
 
 
 @pytest.fixture()
@@ -154,8 +154,8 @@ class TestParameterConfig:
             include=[openff.interchange.models.PotentialKey(id="a")],
             exclude=[openff.interchange.models.PotentialKey(id="b")],
         )
-        assert isinstance(config.include[0], _PotentialKey)
-        assert isinstance(config.exclude[0], _PotentialKey)
+        assert isinstance(config.include[0], openff.interchange.models.PotentialKey)
+        assert isinstance(config.exclude[0], openff.interchange.models.PotentialKey)
 
         with pytest.raises(
             pydantic.ValidationError,
