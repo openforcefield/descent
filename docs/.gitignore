@@ -1,0 +1,18 @@
+# Sphinx build outputs
+_build/
+_autosummary/
+
+# Generated API docs
+api/generated/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS
+.DS_Store
+Thumbs.db
