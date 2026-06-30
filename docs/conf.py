@@ -179,3 +179,10 @@ texinfo_documents = [
         "Miscellaneous",
     ),
 ]
+
+# -- Options for linkcheck ---------------------------------------------------
+
+# Ignore known broken external anchors (PyTorch docs issue)
+linkcheck_anchors_ignore = [
+    r"torch\.Tensor",
+]
