@@ -84,7 +84,7 @@ napoleon_use_param = True
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable", None),
-    "torch": ("https://pytorch.org/docs/stable", None),
+    "torch": ("https://docs.pytorch.org/docs/stable", None),
     "openff.toolkit": (
         "https://docs.openforcefield.org/projects/toolkit/en/stable/",
         None,

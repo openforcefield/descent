@@ -71,6 +71,5 @@ training:
 
 ## Additional Resources
 
-- [Contributing Guidelines](../CONTRIBUTING.md): How to contribute examples or improvements
 - [API Documentation](api/train.rst): Detailed API reference
-- [GitHub Repository](https://github.com/SimonBoothroyd/descent): Source code and issue tracker
+- [GitHub Repository](https://github.com/openforcefield/descent): Source code and issue tracker

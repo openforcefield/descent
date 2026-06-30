@@ -19,7 +19,7 @@ DESCENT also supports all standard PyTorch optimizers:
 - ``torch.optim.SGD``
 - ``torch.optim.LBFGS``
 
-See the `PyTorch documentation <https://pytorch.org/docs/stable/optim.html>`__ for details.
+See the `PyTorch documentation <https://docs.pytorch.org/docs/stable/optim.html>`__ for details.
 
 Learning Rate Schedules
 -----------------------
@@ -31,4 +31,4 @@ DESCENT supports all PyTorch learning rate schedulers:
 - ``torch.optim.lr_scheduler.CosineAnnealingLR``
 - ``torch.optim.lr_scheduler.ExponentialLR``
 
-See the `PyTorch documentation <https://pytorch.org/docs/stable/optim.html#how-to-adjust-learning-rate>`__ for details.
+See the `PyTorch optimizer documentation <https://docs.pytorch.org/docs/stable/optim.html>`__ for details.

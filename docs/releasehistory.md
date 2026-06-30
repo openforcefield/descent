@@ -37,6 +37,4 @@ Initial release (pending).
 
 ## Contributing
 
-To report bugs or request features, please [open an issue](https://github.com/SimonBoothroyd/descent/issues) on GitHub.
-
-For information about contributing code, see the [Contributing Guidelines](../CONTRIBUTING.md).
+To report bugs or request features, please [open an issue](https://github.com/openforcefield/descent/issues) on GitHub.
