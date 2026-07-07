@@ -44,9 +44,7 @@ mamba install -c conda-forge jupyter
 
 To get started, see the [examples](examples).
 
-## Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this project. All contributors are expected to adhere to the [Code of Conduct](CODE_OF_CONDUCT.md).
+All contributors are expected to adhere to the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Copyright
 
