@@ -7,7 +7,8 @@ platforms = [ "linux-64", "osx-arm64" ]
 [tasks]
 run_tests = "python -m pytest -v --cov=descent --cov-append --cov-report=xml --color=yes descent/tests/"
 run_mypy = "python -m mypy descent/"
-make_docs = "mkdocs build"
+make_docs = "sphinx-build -b html docs docs/_build/html"
+clean_docs = "rm -rf docs/_build docs/api/generated"
 
 [dependencies]
 python = ">=3.12"
@@ -48,14 +49,16 @@ pytest-mock = "*"
 codecov = "*"
 
 [feature.docs.dependencies]
-mkdocs = "*"
-mkdocs-material = "*"
-mkdocs-gen-files = "*"
-mkdocs-literate-nav = "*"
-mkdocstrings = "*"
-mkdocstrings-python = ">=1.10.8"
-griffe-pydantic = "*"
-mike = "*"
+sphinx = ">=6.0,<7.0"
+myst-nb = ">=1.0"
+myst-parser = ">=2.0"
+sphinx-notfound-page = "*"
+sphinxcontrib-bibtex = ">=2.5"
+ipython = "*"
+libsass = "*"
+
+[feature.docs.pypi-dependencies]
+openff-sphinx-theme = { git = "https://github.com/openforcefield/openff-sphinx-theme.git" }
 
 [feature.py312.dependencies]
 python = "3.12.*"
