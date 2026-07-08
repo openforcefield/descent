@@ -41,5 +41,3 @@ jobs:
         file: ./coverage.xml
         flags: unittests
         token: ${{ secrets.CODECOV_TOKEN }}
-
-
