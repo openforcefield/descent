@@ -126,7 +126,7 @@ html_theme = "openff_sphinx_theme"
 
 html_theme_options = {
     # Repository integration
-    "repo_url": "https://github.com/SimonBoothroyd/descent",
+    "repo_url": "https://github.com/openforcefield/descent",
     "repo_name": "descent",
     "repo_type": "github",
     "color_accent": "openff-toolkit-blue",

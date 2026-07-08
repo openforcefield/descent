@@ -66,7 +66,7 @@ If you use DESCENT in your research, please cite:
 @software{descent,
   author = {Boothroyd, Simon},
   title = {DESCENT: Differentiable parameter optimization for force fields},
-  url = {https://github.com/SimonBoothroyd/descent},
+  url = {https://github.com/openforcefield/descent},
   year = {2024}
 }
 ```

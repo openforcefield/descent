@@ -32,7 +32,7 @@ $ pixi shell
 To install DESCENT from source for development purposes:
 
 ```shell-session
-$ git clone https://github.com/SimonBoothroyd/descent.git
+$ git clone https://github.com/openforcefield/descent.git
 $ cd descent
 $ pip install -e .
 ```
@@ -89,4 +89,4 @@ If you encounter issues during installation:
 2. **OpenFF Toolkit issues**: Make sure you have RDKit or OpenEye toolkit installed
 3. **PyTorch issues**: Verify PyTorch is properly installed for your system
 
-For additional help, please [open an issue](https://github.com/SimonBoothroyd/descent/issues) on GitHub.
+For additional help, please [open an issue](https://github.com/openforcefield/descent/issues) on GitHub.

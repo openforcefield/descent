@@ -4,10 +4,10 @@
 
 <p align="center">
   <a href="https://github.com//actions?query=workflow%3Aci">
-    <img alt="ci" src="https://github.com/SimonBoothroyd/descent/actions/workflows/ci.yaml/badge.svg" />
+    <img alt="ci" src="https://github.com/openforcefield/descent/actions/workflows/ci.yaml/badge.svg" />
   </a>
-  <a href="https://codecov.io/gh/SimonBoothroyd/descent/branch/main">
-    <img alt="coverage" src="https://codecov.io/gh/SimonBoothroyd/descent/branch/main/graph/badge.svg" />
+  <a href="https://codecov.io/gh/openforcefield/descent/branch/main">
+    <img alt="coverage" src="https://codecov.io/gh/openforcefield/descent/branch/main/graph/badge.svg" />
   </a>
   <a href="https://opensource.org/licenses/MIT">
     <img alt="license" src="https://img.shields.io/badge/License-MIT-yellow.svg" />
