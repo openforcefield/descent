@@ -1,4 +1,4 @@
-## Code OF CONDUCT ##
+## CODE OF CONDUCT ##
 
 Participation in the OpenFF community is governed by the [OMSF Code of Conduct](https://omsf.io/resources/conduct/). While a copy is included in this repository for convenience, the official version maintained on the OMSF website is the authoritative source and supersedes this copy.
 
