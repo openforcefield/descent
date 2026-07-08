@@ -44,6 +44,8 @@ mamba install -c conda-forge jupyter
 
 To get started, see the [examples](examples).
 
+All contributors are expected to adhere to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## Copyright
 
 Copyright (c) 2023, Simon Boothroyd
