@@ -26,11 +26,6 @@ def _unflatten_tensors(
     return tensors
 
 
-def _convert_keys(value: typing.Any) -> typing.Any:
-    if not isinstance(value, list):
-        return value
-
-
 def _tensor_like_or_empty(values: list[float], like: torch.Tensor) -> torch.Tensor:
     """Create a tensor like `like`, returning an empty one when no values exist."""
     return (
