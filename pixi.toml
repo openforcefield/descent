@@ -40,6 +40,8 @@ descent = { path = ".", editable = true }
 pre-commit = "*"
 ruff = "*"
 nbqa = "*"
+ipython = "*"
+ipdb = "*"
 
 [feature.test.dependencies]
 ambertools = "*"

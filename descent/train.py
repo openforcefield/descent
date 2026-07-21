@@ -160,6 +160,31 @@ class Trainable:
     """
 
     @staticmethod
+    def _strip_irrelevant_values_from_potential_key(
+        potential_key: openff.interchange.models.PotentialKey,
+    ) -> openff.interchange.models.PotentialKey:
+        """
+        Strip out values defined on a `PotentialKey` that are not relevant for
+        determining whether a parameter should be excluded from training.
+
+        This removes
+          * `PotentialKey.cosmetic_attributes`
+          * `PotentialKey.virtual_site_type`
+
+        This does not remove
+          * `PotentialKey.id`
+          * `PotentialKey.associated_handler`
+          * `PotentialKey.mult`
+          * `PotentialKey.bond_order`
+        """
+        return openff.interchange.models.PotentialKey(
+            id=potential_key.id,
+            associated_handler=potential_key.associated_handler,
+            mult=potential_key.mult,
+            bond_order=potential_key.bond_order,
+        )
+
+    @staticmethod
     def _prepare_rows(
         config: AttributeConfig,
         n_rows: int,
@@ -177,7 +202,24 @@ class Trainable:
         key_to_row = {key: row_idx for row_idx, key in enumerate(all_keys)}
         assert len(key_to_row) == len(all_keys), "duplicate keys found"
 
-        return {key_to_row[key] for key in unfrozen_keys if key not in excluded_keys}
+        # If a key in excluded_keys has defined attributes that we want to ignore, we
+        # want to ignore them, so strip them out. See for example
+        # `test_init_vsites_exclude_key_without_virtual_site_type`
+        stripped_excluded_keys = [
+            Trainable._strip_irrelevant_values_from_potential_key(key)
+            for key in excluded_keys
+        ]
+
+        # Do the same thing when checking whether or not the unfrozen keys are in the
+        # excluded keys, but avoid modifying unfrozen_keys in place to avoid surprising
+        # side effects. See `test_init_exclude_key_without_cosmetic_attributes` for an
+        # example of this in use.
+        return {
+            key_to_row[key]
+            for key in unfrozen_keys
+            if Trainable._strip_irrelevant_values_from_potential_key(key)
+            not in stripped_excluded_keys
+        }
 
     @staticmethod
     def _prepare_values(
