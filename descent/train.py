@@ -314,7 +314,7 @@ class Trainable:
             all_keys = None
             if isinstance(potential_config, ParameterConfig):
                 all_keys = [
-                    openff.interchange.models.PotentialKey(**v.dict())
+                    openff.interchange.models.PotentialKey(**v.model_dump())
                     for v in getattr(potential, f"{attr[:-1]}_keys")
                 ]
 
@@ -377,7 +377,7 @@ class Trainable:
         vsite_cols = list(force_field.v_sites.default_units().keys())
 
         all_keys = [
-            openff.interchange.models.PotentialKey(**key.dict())
+            openff.interchange.models.PotentialKey(**key.model_dump())
             for key in force_field.v_sites.keys
         ]
         unfrozen_rows = self._prepare_rows(config, n_rows, all_keys)
