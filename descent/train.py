@@ -182,6 +182,7 @@ class Trainable:
         assert all_keys is not None
 
         excluded_keys = config.exclude or []
+        # TODO: Possibly strip irrelevant fields from included keys as well
         unfrozen_keys = config.include or all_keys
 
         key_to_row = {key: row_idx for row_idx, key in enumerate(all_keys)}
