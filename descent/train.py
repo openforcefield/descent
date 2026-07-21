@@ -9,6 +9,9 @@ import smee.utils
 import torch
 
 
+PotentialKeyList = list[openff.interchange.models.PotentialKey]
+
+
 def _unflatten_tensors(
     flat_tensor: torch.Tensor, shapes: list[torch.Size]
 ) -> list[torch.Tensor]:
@@ -48,24 +51,6 @@ def _validate_trainable_keys(
         raise ValueError("cannot clamp non-trainable parameters")
     if any(key not in cols for key in regularize):
         raise ValueError("cannot regularize non-trainable parameters")
-
-
-def _convert_keys(value: typing.Any) -> typing.Any:
-    if not isinstance(value, list):
-        return value
-
-    return [
-        openff.interchange.models.PotentialKey(**v.dict())
-        if isinstance(v, openff.interchange.models.PotentialKey)
-        else v
-        for v in value
-    ]
-
-
-PotentialKeyList = typing.Annotated[
-    list[openff.interchange.models.PotentialKey],
-    pydantic.BeforeValidator(_convert_keys),
-]
 
 
 class AttributeConfig(pydantic.BaseModel):
