@@ -145,28 +145,30 @@ class Trainable:
     """
 
     @staticmethod
-    def _strip_irrelevant_values_from_potential_key(
-        potential_key: openff.interchange.models.PotentialKey,
-    ) -> openff.interchange.models.PotentialKey:
-        """
-        Strip out values defined on a `PotentialKey` that are not relevant for
-        determining whether a parameter should be excluded from training.
+    def _permissive_key_eq(
+        key1: openff.interchange.models.PotentialKey,
+        key2: openff.interchange.models.PotentialKey,
+    ) -> bool:
+        """Compare two potential keys for equality, ignoring irrelevant values.
 
-        This removes
-          * `PotentialKey.cosmetic_attributes`
-          * `PotentialKey.virtual_site_type`
+        The fields compared are
+        * `PotentialKey.id`
+        * `PotentialKey.mult`
+        * `PotentialKey.associated_handler`
+        * `PotentialKey.bond_order`
 
-        This does not remove
-          * `PotentialKey.id`
-          * `PotentialKey.associated_handler`
-          * `PotentialKey.mult`
-          * `PotentialKey.bond_order`
+        Fields ignored are
+        * `PotentialKey.cosmetic_attributes`
+        * `PotentialKey.virtual_site_type`
+
+        This is used to determine whether a parameter should be excluded from,
+        or included in, training.
         """
-        return openff.interchange.models.PotentialKey(
-            id=potential_key.id,
-            associated_handler=potential_key.associated_handler,
-            mult=potential_key.mult,
-            bond_order=potential_key.bond_order,
+        return (
+            key1.id == key2.id
+            and key1.mult == key2.mult
+            and key1.associated_handler == key2.associated_handler
+            and key1.bond_order == key2.bond_order
         )
 
     @staticmethod
@@ -181,31 +183,26 @@ class Trainable:
 
         assert all_keys is not None
 
-        excluded_keys = config.exclude or []
-        # TODO: Possibly strip irrelevant fields from included keys as well
-        unfrozen_keys = config.include or all_keys
+        assert len(all_keys) == len(set(all_keys)), "duplicate keys found"
 
-        key_to_row = {key: row_idx for row_idx, key in enumerate(all_keys)}
-        assert len(key_to_row) == len(all_keys), "duplicate keys found"
+        unfrozen_rows = set()
+        for i, key in enumerate(all_keys):
+            if config.include:
+                if not any(
+                    Trainable._permissive_key_eq(key, included_key)
+                    for included_key in config.include
+                ):
+                    continue
+            if config.exclude:
+                if any(
+                    Trainable._permissive_key_eq(key, excluded_key)
+                    for excluded_key in config.exclude
+                ):
+                    continue
 
-        # If a key in excluded_keys has defined attributes that we want to ignore, we
-        # want to ignore them, so strip them out. See for example
-        # `test_init_vsites_exclude_key_without_virtual_site_type`
-        stripped_excluded_keys = [
-            Trainable._strip_irrelevant_values_from_potential_key(key)
-            for key in excluded_keys
-        ]
+            unfrozen_rows.add(i)
 
-        # Do the same thing when checking whether or not the unfrozen keys are in the
-        # excluded keys, but avoid modifying unfrozen_keys in place to avoid surprising
-        # side effects. See `test_init_exclude_key_without_cosmetic_attributes` for an
-        # example of this in use.
-        return {
-            key_to_row[key]
-            for key in unfrozen_keys
-            if Trainable._strip_irrelevant_values_from_potential_key(key)
-            not in stripped_excluded_keys
-        }
+        return unfrozen_rows
 
     @staticmethod
     def _prepare_values(
