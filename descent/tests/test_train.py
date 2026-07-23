@@ -159,7 +159,7 @@ class TestParameterConfig:
 
         with pytest.raises(
             pydantic.ValidationError,
-            match="cannot include and exclude the same parameter",
+            match=r"Cannot include and exclude the same parameter\(s\):.*",
         ):
             ParameterConfig(
                 cols=["sigma"],

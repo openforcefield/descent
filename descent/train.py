@@ -53,6 +53,33 @@ def _validate_trainable_keys(
         raise ValueError("cannot regularize non-trainable parameters")
 
 
+def _permissive_key_eq(
+    key1: openff.interchange.models.PotentialKey,
+    key2: openff.interchange.models.PotentialKey,
+) -> bool:
+    """Compare two potential keys for equality, ignoring irrelevant values.
+
+    The fields compared are
+    * `PotentialKey.id`
+    * `PotentialKey.mult`
+    * `PotentialKey.associated_handler`
+    * `PotentialKey.bond_order`
+
+    Fields ignored are
+    * `PotentialKey.cosmetic_attributes`
+    * `PotentialKey.virtual_site_type`
+
+    This is used to determine whether a parameter should be excluded from,
+    or included in, training.
+    """
+    return (
+        key1.id == key2.id
+        and key1.mult == key2.mult
+        and key1.associated_handler == key2.associated_handler
+        and key1.bond_order == key2.bond_order
+    )
+
+
 class AttributeConfig(pydantic.BaseModel):
     """Configuration for how a potential's attributes should be trained."""
 
@@ -108,10 +135,20 @@ class ParameterConfig(AttributeConfig):
         """Ensure that the keys in `include` and `exclude` are disjoint."""
 
         if self.include is not None and self.exclude is not None:
-            include = {*self.include}
-            exclude = {*self.exclude}
-            if include & exclude:
-                raise ValueError("cannot include and exclude the same parameter")
+            included_and_excluded = {
+                key
+                for key in self.include
+                if any(
+                    _permissive_key_eq(key, excluded_key)
+                    for excluded_key in self.exclude
+                )
+            }
+
+            if included_and_excluded:
+                raise ValueError(
+                    "Cannot include and exclude the same parameter(s): "
+                    f"{included_and_excluded}"
+                )
 
         return self
 
@@ -145,33 +182,6 @@ class Trainable:
     """
 
     @staticmethod
-    def _permissive_key_eq(
-        key1: openff.interchange.models.PotentialKey,
-        key2: openff.interchange.models.PotentialKey,
-    ) -> bool:
-        """Compare two potential keys for equality, ignoring irrelevant values.
-
-        The fields compared are
-        * `PotentialKey.id`
-        * `PotentialKey.mult`
-        * `PotentialKey.associated_handler`
-        * `PotentialKey.bond_order`
-
-        Fields ignored are
-        * `PotentialKey.cosmetic_attributes`
-        * `PotentialKey.virtual_site_type`
-
-        This is used to determine whether a parameter should be excluded from,
-        or included in, training.
-        """
-        return (
-            key1.id == key2.id
-            and key1.mult == key2.mult
-            and key1.associated_handler == key2.associated_handler
-            and key1.bond_order == key2.bond_order
-        )
-
-    @staticmethod
     def _prepare_rows(
         config: AttributeConfig,
         n_rows: int,
@@ -189,13 +199,13 @@ class Trainable:
         for i, key in enumerate(all_keys):
             if config.include:
                 if not any(
-                    Trainable._permissive_key_eq(key, included_key)
+                    _permissive_key_eq(key, included_key)
                     for included_key in config.include
                 ):
                     continue
             if config.exclude:
                 if any(
-                    Trainable._permissive_key_eq(key, excluded_key)
+                    _permissive_key_eq(key, excluded_key)
                     for excluded_key in config.exclude
                 ):
                     continue
