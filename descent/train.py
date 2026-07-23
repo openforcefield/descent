@@ -9,6 +9,9 @@ import smee.utils
 import torch
 
 
+PotentialKeyList = list[openff.interchange.models.PotentialKey]
+
+
 def _unflatten_tensors(
     flat_tensor: torch.Tensor, shapes: list[torch.Size]
 ) -> list[torch.Tensor]:
@@ -50,54 +53,31 @@ def _validate_trainable_keys(
         raise ValueError("cannot regularize non-trainable parameters")
 
 
-if pydantic.__version__.startswith("1."):
-    _PotentialKey = openff.interchange.models.PotentialKey
-    PotentialKeyList = list[_PotentialKey]
-else:
+def _permissive_key_eq(
+    key1: openff.interchange.models.PotentialKey,
+    key2: openff.interchange.models.PotentialKey,
+) -> bool:
+    """Compare two potential keys for equality, ignoring irrelevant values.
 
-    class _PotentialKey(pydantic.BaseModel):  # type: ignore[no-redef]
-        """
+    The fields compared are
+    * `PotentialKey.id`
+    * `PotentialKey.mult`
+    * `PotentialKey.associated_handler`
+    * `PotentialKey.bond_order`
 
-        TODO: Needed until interchange upgrades to pydantic >=2
-        """
+    Fields ignored are
+    * `PotentialKey.cosmetic_attributes`
+    * `PotentialKey.virtual_site_type`
 
-        id: str
-        mult: int | None = None
-        associated_handler: str | None = None
-        bond_order: float | None = None
-
-        def __hash__(self) -> int:
-            return hash((self.id, self.mult, self.associated_handler, self.bond_order))
-
-        def __eq__(self, other: object) -> bool:
-            import openff.interchange.models
-
-            return (
-                isinstance(
-                    other, (_PotentialKey, openff.interchange.models.PotentialKey)
-                )
-                and self.id == other.id
-                and self.mult == other.mult
-                and self.associated_handler == other.associated_handler
-                and self.bond_order == other.bond_order
-            )
-
-    def _convert_keys(value: typing.Any) -> typing.Any:
-        if not isinstance(value, list):
-            return value
-
-        return [
-            (
-                _PotentialKey(**v.dict())
-                if isinstance(v, openff.interchange.models.PotentialKey)
-                else v
-            )
-            for v in value
-        ]
-
-    PotentialKeyList = typing.Annotated[  # type: ignore[misc]
-        list[_PotentialKey], pydantic.BeforeValidator(_convert_keys)
-    ]
+    This is used to determine whether a parameter should be excluded from,
+    or included in, training.
+    """
+    return (
+        key1.id == key2.id
+        and key1.mult == key2.mult
+        and key1.associated_handler == key2.associated_handler
+        and key1.bond_order == key2.bond_order
+    )
 
 
 class AttributeConfig(pydantic.BaseModel):
@@ -125,31 +105,13 @@ class AttributeConfig(pydantic.BaseModel):
         "'k': 0.01, 'epsilon': 0.001. Parameters not listed are not regularized.",
     )
 
-    if pydantic.__version__.startswith("1."):
+    @pydantic.model_validator(mode="after")
+    def _validate_keys(self):
+        """Ensure that the keys in `scales` and `limits` match `cols`."""
 
-        @pydantic.root_validator  # type: ignore[call-overload]
-        def _validate_keys(cls, values):
-            cols = values.get("cols")
+        _validate_trainable_keys(self.cols, self.scales, self.limits, self.regularize)
 
-            scales = values.get("scales")
-            limits = values.get("limits")
-            regularize = values.get("regularize")
-
-            _validate_trainable_keys(cols, scales, limits, regularize)
-
-            return values
-
-    else:
-
-        @pydantic.model_validator(mode="after")
-        def _validate_keys(self):
-            """Ensure that the keys in `scales` and `limits` match `cols`."""
-
-            _validate_trainable_keys(
-                self.cols, self.scales, self.limits, self.regularize
-            )
-
-            return self
+        return self
 
 
 class ParameterConfig(AttributeConfig):
@@ -168,36 +130,27 @@ class ParameterConfig(AttributeConfig):
         "If ``None``, no parameters will be excluded.",
     )
 
-    if pydantic.__version__.startswith("1."):
+    @pydantic.model_validator(mode="after")
+    def _validate_include_exclude(self):
+        """Ensure that the keys in `include` and `exclude` are disjoint."""
 
-        @pydantic.root_validator  # type: ignore[call-overload]
-        def _validate_include_exclude(cls, values):
-            include = values.get("include")
-            exclude = values.get("exclude")
+        if self.include is not None and self.exclude is not None:
+            included_and_excluded = {
+                key
+                for key in self.include
+                if any(
+                    _permissive_key_eq(key, excluded_key)
+                    for excluded_key in self.exclude
+                )
+            }
 
-            if include is not None and exclude is not None:
-                include = {*include}
-                exclude = {*exclude}
+            if included_and_excluded:
+                raise ValueError(
+                    "Cannot include and exclude the same parameter(s): "
+                    f"{included_and_excluded}"
+                )
 
-                if include & exclude:
-                    raise ValueError("cannot include and exclude the same parameter")
-
-            return values
-
-    else:
-
-        @pydantic.model_validator(mode="after")
-        def _validate_include_exclude(self):
-            """Ensure that the keys in `include` and `exclude` are disjoint."""
-
-            if self.include is not None and self.exclude is not None:
-                include = {*self.include}
-                exclude = {*self.exclude}
-
-                if include & exclude:
-                    raise ValueError("cannot include and exclude the same parameter")
-
-            return self
+        return self
 
 
 class _PreparedBlock(typing.NamedTuple):
@@ -232,7 +185,7 @@ class Trainable:
     def _prepare_rows(
         config: AttributeConfig,
         n_rows: int,
-        all_keys: list[_PotentialKey] | None = None,
+        all_keys: list[openff.interchange.models.PotentialKey] | None = None,
     ) -> set[int]:
         """Determine which rows should be trainable."""
         if not isinstance(config, ParameterConfig):
@@ -240,13 +193,26 @@ class Trainable:
 
         assert all_keys is not None
 
-        excluded_keys = config.exclude or []
-        unfrozen_keys = config.include or all_keys
+        assert len(all_keys) == len(set(all_keys)), "duplicate keys found"
 
-        key_to_row = {key: row_idx for row_idx, key in enumerate(all_keys)}
-        assert len(key_to_row) == len(all_keys), "duplicate keys found"
+        unfrozen_rows = set()
+        for i, key in enumerate(all_keys):
+            if config.include:
+                if not any(
+                    _permissive_key_eq(key, included_key)
+                    for included_key in config.include
+                ):
+                    continue
+            if config.exclude:
+                if any(
+                    _permissive_key_eq(key, excluded_key)
+                    for excluded_key in config.exclude
+                ):
+                    continue
 
-        return {key_to_row[key] for key in unfrozen_keys if key not in excluded_keys}
+            unfrozen_rows.add(i)
+
+        return unfrozen_rows
 
     @staticmethod
     def _prepare_values(
@@ -356,7 +322,7 @@ class Trainable:
             all_keys = None
             if isinstance(potential_config, ParameterConfig):
                 all_keys = [
-                    _PotentialKey(**v.dict())
+                    openff.interchange.models.PotentialKey(**v.model_dump())
                     for v in getattr(potential, f"{attr[:-1]}_keys")
                 ]
 
@@ -418,7 +384,10 @@ class Trainable:
         # avoids hard-coding them.
         vsite_cols = list(force_field.v_sites.default_units().keys())
 
-        all_keys = [_PotentialKey(**key.dict()) for key in force_field.v_sites.keys]
+        all_keys = [
+            openff.interchange.models.PotentialKey(**key.model_dump())
+            for key in force_field.v_sites.keys
+        ]
         unfrozen_rows = self._prepare_rows(config, n_rows, all_keys)
         (
             unfrozen_idxs,

@@ -11,7 +11,7 @@ import smee.utils
 import torch
 
 
-from descent.train import AttributeConfig, ParameterConfig, Trainable, _PotentialKey
+from descent.train import AttributeConfig, ParameterConfig, Trainable
 
 
 @pytest.fixture()
@@ -154,12 +154,12 @@ class TestParameterConfig:
             include=[openff.interchange.models.PotentialKey(id="a")],
             exclude=[openff.interchange.models.PotentialKey(id="b")],
         )
-        assert isinstance(config.include[0], _PotentialKey)
-        assert isinstance(config.exclude[0], _PotentialKey)
+        assert isinstance(config.include[0], openff.interchange.models.PotentialKey)
+        assert isinstance(config.exclude[0], openff.interchange.models.PotentialKey)
 
         with pytest.raises(
             pydantic.ValidationError,
-            match="cannot include and exclude the same parameter",
+            match=r"Cannot include and exclude the same parameter\(s\):.*",
         ):
             ParameterConfig(
                 cols=["sigma"],
@@ -474,3 +474,86 @@ class TestTrainable:
             trainable.regularization_weights,
             torch.tensor([0.25], dtype=torch.float64),
         )
+
+    # A key's ``virtual_site_type`` and ``cosmetic_attributes`` fall outside the
+    # historical ``(id, mult, associated_handler, bond_order)`` match set, so a
+    # key a user builds from a SMIRKS -- which sets neither -- must still match
+    # the force field's key in ``include`` / ``exclude``.
+
+    def test_init_vsites_exclude_key_without_virtual_site_type(self, water_sites_ff):
+        # A user references the lone pair the way its key prints, i.e. by
+        # SMIRKS + name + match, without the interchange-only virtual_site_type.
+        excluded = openff.interchange.models.PotentialKey(
+            id="[#1:2]-[#8X2H2+0:1]-[#1:3] EP once",
+            associated_handler="VirtualSites",
+        )
+
+        trainable = Trainable(
+            water_sites_ff,
+            parameters={},
+            attributes={},
+            vsites=ParameterConfig(cols=["distance"], exclude=[excluded]),
+        )
+
+        # the sole lone pair is excluded, so nothing remains trainable.
+        assert trainable._unfrozen_idxs.numel() == 0
+
+    def test_init_vsites_include_key_without_virtual_site_type(self, water_sites_ff):
+        # As above, a user references the lone pair the way its key prints, but
+        # without the interchange-only virtual_site_type, but this time we include
+        # it rather than exclude it.
+        included = openff.interchange.models.PotentialKey(
+            id="[#1:2]-[#8X2H2+0:1]-[#1:3] EP once",
+            associated_handler="VirtualSites",
+        )
+
+        trainable = Trainable(
+            water_sites_ff,
+            parameters={},
+            attributes={},
+            vsites=ParameterConfig(cols=["distance"], include=[included]),
+        )
+
+        # The sole lone pair we included
+        assert trainable._unfrozen_idxs.numel() == 1
+
+    @pytest.fixture()
+    def cosmetic_bond_ff(self):
+        """A force field whose first (C-C) bond parameter carries a cosmetic
+        attribute, which interchange propagates onto that parameter's key. This
+        is not specific to virtual sites -- any handler can produce such keys."""
+        force_field = openff.toolkit.ForceField("openff-2.0.0.offxml")
+        # Assign formal charges so the test needs no semiempirical charge backend.
+        force_field.deregister_parameter_handler("ToolkitAM1BCC")
+        force_field.get_parameter_handler(
+            "ChargeIncrementModel",
+            {"version": "0.4", "partial_charge_method": "formal_charge"},
+        )
+        force_field.get_parameter_handler("Bonds").parameters[0].add_cosmetic_attribute(
+            "foo", "bar"
+        )
+        interchange = openff.interchange.Interchange.from_smirnoff(
+            force_field, openff.toolkit.Molecule.from_smiles("CC").to_topology()
+        )
+        ff, _ = smee.converters.convert_interchange(interchange)
+
+        bond_keys = ff.potentials_by_type["Bonds"].parameter_keys
+        # row 0 is the cosmetic-tagged C-C bond, row 1 the untagged C-H bond.
+        assert bond_keys[0].cosmetic_attributes == {"foo": "bar"}
+        assert bond_keys[1].cosmetic_attributes == {}
+        return ff
+
+    def test_init_exclude_key_without_cosmetic_attributes(self, cosmetic_bond_ff):
+        excluded = openff.interchange.models.PotentialKey(
+            id="[#6X4:1]-[#6X4:2]", associated_handler="Bonds"
+        )
+
+        trainable = Trainable(
+            cosmetic_bond_ff,
+            parameters={"Bonds": ParameterConfig(cols=["k"], exclude=[excluded])},
+            attributes={},
+        )
+
+        # the excluded C-C bond must not train; only the C-H bond's `k` remains
+        # (row 1, col 0 of a width-2 block -> flat index 2).
+        assert (trainable._unfrozen_idxs == torch.tensor([2])).all()
