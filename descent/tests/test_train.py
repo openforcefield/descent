@@ -498,6 +498,25 @@ class TestTrainable:
         # the sole lone pair is excluded, so nothing remains trainable.
         assert trainable._unfrozen_idxs.numel() == 0
 
+    def test_init_vsites_include_key_without_virtual_site_type(self, water_sites_ff):
+        # As above, a user references the lone pair the way its key prints, but
+        # without the interchange-only virtual_site_type, but this time we include
+        # it rather than exclude it.
+        included = openff.interchange.models.PotentialKey(
+            id="[#1:2]-[#8X2H2+0:1]-[#1:3] EP once",
+            associated_handler="VirtualSites",
+        )
+
+        trainable = Trainable(
+            water_sites_ff,
+            parameters={},
+            attributes={},
+            vsites=ParameterConfig(cols=["distance"], include=[included]),
+        )
+
+        # The sole lone pair we included
+        assert trainable._unfrozen_idxs.numel() == 1
+
     @pytest.fixture()
     def cosmetic_bond_ff(self):
         """A force field whose first (C-C) bond parameter carries a cosmetic
