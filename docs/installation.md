@@ -72,6 +72,7 @@ To verify that DESCENT is installed correctly, run:
 
 ```python
 import descent
+
 print(descent.__version__)
 ```
 
