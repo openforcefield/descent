@@ -29,7 +29,7 @@ config = TrainingConfig(
     force_field="openff-2.0.0.offxml",
     parameters=["[#6:1]-[#6:2]", "[#6:1]-[#1:2]"],
     targets=[...],
-    optimizer_config={...}
+    optimizer_config={...},
 )
 
 # Run training
@@ -50,7 +50,7 @@ from descent.targets import EnergyTarget
 target = EnergyTarget(
     dataset="energies.json",
     weight=1.0,
-    denominator="std"  # Normalize by standard deviation
+    denominator="std",  # Normalize by standard deviation
 )
 ```
 
@@ -61,11 +61,7 @@ Fit to experimental thermodynamic properties (density, enthalpy of vaporization,
 ```python
 from descent.targets import ThermoTarget
 
-target = ThermoTarget(
-    dataset="thermo.json",
-    weight=0.5,
-    properties=["density", "hvap"]
-)
+target = ThermoTarget(dataset="thermo.json", weight=0.5, properties=["density", "hvap"])
 ```
 
 ### Dimer Targets
@@ -75,10 +71,7 @@ Fit to dimer interaction energies:
 ```python
 from descent.targets import DimerTarget
 
-target = DimerTarget(
-    dataset="dimers.json",
-    weight=0.3
-)
+target = DimerTarget(dataset="dimers.json", weight=0.3)
 ```
 
 ## Optimization Strategies
@@ -88,10 +81,7 @@ DESCENT uses PyTorch optimizers for parameter optimization:
 ```python
 from descent.optim import AdamW
 
-optimizer = AdamW(
-    lr=1e-3,
-    weight_decay=1e-4
-)
+optimizer = AdamW(lr=1e-3, weight_decay=1e-4)
 ```
 
 Common optimizers:
@@ -107,11 +97,9 @@ The overall loss is a weighted combination of target losses:
 ```python
 from descent.utils.loss import WeightedLoss
 
-loss_fn = WeightedLoss(targets=[
-    (energy_target, 1.0),
-    (thermo_target, 0.5),
-    (dimer_target, 0.3)
-])
+loss_fn = WeightedLoss(
+    targets=[(energy_target, 1.0), (thermo_target, 0.5), (dimer_target, 0.3)]
+)
 ```
 
 ## Training Loop
@@ -125,12 +113,7 @@ from descent.train import train
 config = TrainingConfig(...)
 
 # Run training
-results = train(
-    config,
-    max_epochs=100,
-    batch_size=32,
-    validation_split=0.2
-)
+results = train(config, max_epochs=100, batch_size=32, validation_split=0.2)
 
 # Access results
 print(f"Final loss: {results['final_loss']}")
@@ -158,17 +141,17 @@ Save and resume training:
 ```python
 # Save checkpoint
 checkpoint = {
-    'epoch': epoch,
-    'parameters': parameters,
-    'optimizer_state': optimizer.state_dict(),
-    'loss': loss
+    "epoch": epoch,
+    "parameters": parameters,
+    "optimizer_state": optimizer.state_dict(),
+    "loss": loss,
 }
-torch.save(checkpoint, 'checkpoint.pt')
+torch.save(checkpoint, "checkpoint.pt")
 
 # Resume training
-checkpoint = torch.load('checkpoint.pt')
-parameters = checkpoint['parameters']
-optimizer.load_state_dict(checkpoint['optimizer_state'])
+checkpoint = torch.load("checkpoint.pt")
+parameters = checkpoint["parameters"]
+optimizer.load_state_dict(checkpoint["optimizer_state"])
 ```
 
 ## Best Practices
@@ -189,6 +172,7 @@ Create custom target functions by subclassing `BaseTarget`:
 ```python
 from descent.targets import BaseTarget
 
+
 class CustomTarget(BaseTarget):
     def compute_loss(self, system, parameters):
         # Custom loss computation
@@ -203,12 +187,7 @@ Use PyTorch learning rate schedulers:
 ```python
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-scheduler = ReduceLROnPlateau(
-    optimizer,
-    mode='min',
-    factor=0.5,
-    patience=10
-)
+scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=10)
 ```
 
 ### Regularization
