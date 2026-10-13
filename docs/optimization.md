@@ -22,11 +22,7 @@ Adaptive Moment Estimation (Adam) is the default optimizer:
 ```python
 from descent.optim import Adam
 
-optimizer = Adam(
-    lr=1e-3,
-    betas=(0.9, 0.999),
-    eps=1e-8
-)
+optimizer = Adam(lr=1e-3, betas=(0.9, 0.999), eps=1e-8)
 ```
 
 **Pros:**
@@ -48,7 +44,7 @@ from descent.optim import AdamW
 optimizer = AdamW(
     lr=1e-3,
     weight_decay=1e-4,  # L2 regularization
-    betas=(0.9, 0.999)
+    betas=(0.9, 0.999),
 )
 ```
 
@@ -61,11 +57,7 @@ Stochastic Gradient Descent with momentum:
 ```python
 from descent.optim import SGD
 
-optimizer = SGD(
-    lr=1e-2,
-    momentum=0.9,
-    nesterov=True
-)
+optimizer = SGD(lr=1e-2, momentum=0.9, nesterov=True)
 ```
 
 **Pros:**
@@ -83,11 +75,7 @@ Limited-memory BFGS for quasi-Newton optimization:
 ```python
 from descent.optim import LBFGS
 
-optimizer = LBFGS(
-    lr=1.0,
-    max_iter=20,
-    history_size=10
-)
+optimizer = LBFGS(lr=1.0, max_iter=20, history_size=10)
 ```
 
 **Pros:**
@@ -116,11 +104,7 @@ Reduce learning rate at specified epochs:
 ```python
 from torch.optim.lr_scheduler import StepLR
 
-scheduler = StepLR(
-    optimizer,
-    step_size=30,
-    gamma=0.1
-)
+scheduler = StepLR(optimizer, step_size=30, gamma=0.1)
 ```
 
 ### Reduce on Plateau
@@ -131,11 +115,7 @@ Reduce when loss plateaus:
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 scheduler = ReduceLROnPlateau(
-    optimizer,
-    mode='min',
-    factor=0.5,
-    patience=10,
-    threshold=1e-4
+    optimizer, mode="min", factor=0.5, patience=10, threshold=1e-4
 )
 ```
 
@@ -146,11 +126,7 @@ Cosine decay with warm restarts:
 ```python
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 
-scheduler = CosineAnnealingWarmRestarts(
-    optimizer,
-    T_0=10,
-    T_mult=2
-)
+scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2)
 ```
 
 ### Exponential Decay
@@ -160,10 +136,7 @@ Exponential learning rate decay:
 ```python
 from torch.optim.lr_scheduler import ExponentialLR
 
-scheduler = ExponentialLR(
-    optimizer,
-    gamma=0.95
-)
+scheduler = ExponentialLR(optimizer, gamma=0.95)
 ```
 
 ## Gradient Computation
@@ -211,11 +184,7 @@ For problems with structured residuals, DESCENT provides Levenberg-Marquardt opt
 ```python
 from descent.optim import LevenbergMarquardt
 
-optimizer = LevenbergMarquardt(
-    lambda_init=1e-3,
-    lambda_factor=10.0,
-    max_iter=100
-)
+optimizer = LevenbergMarquardt(lambda_init=1e-3, lambda_factor=10.0, max_iter=100)
 ```
 
 ## Regularization
@@ -229,7 +198,7 @@ Add L2 penalty to loss:
 optimizer = AdamW(lr=1e-3, weight_decay=1e-4)
 
 # Or manually
-loss = target_loss + 1e-4 * torch.sum(parameters ** 2)
+loss = target_loss + 1e-4 * torch.sum(parameters**2)
 ```
 
 ### L1 Regularization
@@ -301,13 +270,13 @@ from itertools import product
 lr_values = [1e-2, 1e-3, 1e-4]
 wd_values = [0, 1e-4, 1e-3]
 
-best_loss = float('inf')
+best_loss = float("inf")
 best_params = None
 
 for lr, wd in product(lr_values, wd_values):
     optimizer = AdamW(lr=lr, weight_decay=wd)
     loss = train(optimizer, ...)
-    
+
     if loss < best_loss:
         best_loss = loss
         best_params = (lr, wd)
