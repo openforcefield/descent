@@ -14,6 +14,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
 ]
 dynamic = [ "version" ]
 
@@ -29,21 +30,21 @@ lint.ignore = [ "C901" ]
 lint.pydocstyle.convention = "google"
 
 [tool.mypy]
-python_version = "3.12"
 exclude = "descent/tests/"
-plugins = "pydantic.mypy"
-warn_unused_configs = true
-warn_unused_ignores = true
-warn_incomplete_stub = true
-show_error_codes = true
-allow_redefinition = true
-overrides = [ { module = [
-  "rdkit",
-  "datasets",
-  "openff.toolkit.*",
-] } ]
 ignore_missing_imports = true
+python_version = "3.12"
+warn_unused_ignores = true
+allow_redefinition = true
 disable_error_code = [ "arg-type", "assignment", "union-attr" ]  # TODO: Try to remove some of these
+plugins = "pydantic.mypy"
+warn_incomplete_stub = true
+warn_unused_configs = true
+overrides = [ { module = [
+    "datasets",
+    "openff.toolkit.*",
+    "rdkit",
+  ] } ]
+show_error_codes = true
 
 [tool.coverage]
 run.omit = [ "**/tests/*" ]

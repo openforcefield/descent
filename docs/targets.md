@@ -23,7 +23,7 @@ target = EnergyTarget(
     dataset="qm_energies.json",
     weight=1.0,
     denominator="std",  # Normalize by standard deviation
-    energy_type="absolute"  # or "relative"
+    energy_type="absolute",  # or "relative"
 )
 ```
 
@@ -69,7 +69,7 @@ target = ThermoTarget(
     weight=0.5,
     properties=["density", "hvap", "dielectric"],
     temperatures=[298.15],  # K
-    pressures=[1.0]  # atm
+    pressures=[1.0],  # atm
 )
 ```
 
@@ -150,22 +150,23 @@ Create custom target functions by subclassing `BaseTarget`:
 from descent.targets import BaseTarget
 import torch
 
+
 class CustomTarget(BaseTarget):
     def __init__(self, dataset, weight=1.0, **kwargs):
         super().__init__(weight=weight)
         self.dataset = self.load_dataset(dataset)
-        
+
     def compute_loss(self, system, parameters):
         """
         Compute loss for this target.
-        
+
         Parameters
         ----------
         system : System
             The molecular system
         parameters : dict
             Current force field parameters
-            
+
         Returns
         -------
         loss : torch.Tensor
@@ -173,18 +174,18 @@ class CustomTarget(BaseTarget):
         """
         predictions = self.predict(system, parameters)
         references = self.get_references()
-        
+
         loss = torch.mean((predictions - references) ** 2)
         return loss
-        
+
     def predict(self, system, parameters):
         """Compute predictions using current parameters."""
         # Your implementation here
         pass
-        
+
     def get_references(self):
         """Get reference values."""
-        return torch.tensor(self.dataset['values'])
+        return torch.tensor(self.dataset["values"])
 ```
 
 ## Combining Targets
@@ -200,7 +201,7 @@ config = TrainingConfig(
         {"type": "energy", "dataset": "qm.json", "weight": 1.0},
         {"type": "thermo", "dataset": "exp.json", "weight": 0.5},
         {"type": "dimer", "dataset": "dimers.json", "weight": 0.3},
-    ]
+    ],
 )
 ```
 
