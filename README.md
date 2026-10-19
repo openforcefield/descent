@@ -48,4 +48,4 @@ All contributors are expected to adhere to the [Code of Conduct](CODE_OF_CONDUCT
 
 ## Copyright
 
-Copyright (c) 2023, Simon Boothroyd
+Copyright (c) 2023, Open Force Field

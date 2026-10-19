@@ -14,7 +14,7 @@ import descent
 # -- Project information -----------------------------------------------------
 
 project = "DESCENT"
-copyright = "2024, Simon Boothroyd"
+copyright = "2023, Open Force Field"
 author = "Simon Boothroyd"
 
 # The version info for the project
